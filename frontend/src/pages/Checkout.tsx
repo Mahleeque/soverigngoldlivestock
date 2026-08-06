@@ -1,0 +1,380 @@
+import { BadgePercent, CreditCard, Landmark, Lock, MapPin, Truck } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Button } from '@/components/ui/Button'
+import { Badge, Field, Input, Select } from '@/components/ui'
+import { errorMessage } from '@/lib/api'
+import { formatNaira } from '@/lib/format'
+import {
+  useCreateOrder,
+  useDeliveryZones,
+  useInitializePayment,
+  useProfile,
+  useValidateCoupon,
+} from '@/lib/queries'
+import { useAuthStore } from '@/store/auth'
+import { cartSubtotal, useCartStore } from '@/store/cart'
+import { toast } from '@/store/toast'
+
+type PaymentChoice = 'paystack' | 'flutterwave' | 'bank_transfer' | 'pay_on_delivery'
+
+const PAYMENT_OPTIONS: { value: PaymentChoice; label: string; description: string; icon: typeof CreditCard }[] = [
+  { value: 'paystack', label: 'Paystack', description: 'Card, bank & USSD — instant confirmation', icon: CreditCard },
+  { value: 'flutterwave', label: 'Flutterwave', description: 'Card & mobile money across Africa', icon: CreditCard },
+  { value: 'bank_transfer', label: 'Bank transfer', description: 'We send account details by email', icon: Landmark },
+  { value: 'pay_on_delivery', label: 'Pay on delivery', description: 'Deposit now, balance at your gate', icon: Truck },
+]
+
+export const CheckoutPage = () => {
+  const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const profile = useProfile(Boolean(user))
+  const { lines, clear } = useCartStore()
+  const zones = useDeliveryZones()
+  const createOrder = useCreateOrder()
+  const validateCoupon = useValidateCoupon()
+  const initializePayment = useInitializePayment()
+
+  const [couponCode, setCouponCode] = useState('')
+  const [discount, setDiscount] = useState(0)
+  const [appliedCoupon, setAppliedCoupon] = useState('')
+  const [payment, setPayment] = useState<PaymentChoice>('paystack')
+  const [form, setForm] = useState({
+    fullName: '',
+    phone: '',
+    addressLine: '',
+    city: '',
+    state: '',
+  })
+
+  const subtotal = cartSubtotal(lines)
+  const stateOptions = useMemo(
+    () =>
+      zones.data
+        ?.flatMap((z) => z.states.map((s) => ({ state: s, zoneId: z._id, fee: z.baseFee, zoneName: z.name, estMin: z.estimatedDaysMin, estMax: z.estimatedDaysMax })))
+        ?? [],
+    [zones.data],
+  )
+
+  const selectedState = stateOptions.find((o) => o.state === form.state)
+  const deliveryFee = selectedState?.fee ?? 0
+  const total = Math.max(subtotal + deliveryFee - discount, 0)
+
+  const prefill = () => {
+    const address = profile.data?.addresses?.find((item) => item.isDefault) ?? profile.data?.addresses?.[0]
+    setForm({
+      fullName: profile.data ? `${profile.data.firstName} ${profile.data.lastName}` : '',
+      phone: profile.data?.phone ?? '',
+      addressLine: address?.addressLine ?? '',
+      city: address?.city ?? '',
+      state: address?.state ?? '',
+    })
+  }
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return
+    try {
+      const result = await validateCoupon.mutateAsync({ code: couponCode.trim(), subtotal })
+      setDiscount(result.discount)
+      setAppliedCoupon(result.coupon.code)
+      toast.success(`Coupon applied — you saved ${formatNaira(result.discount)}`)
+    } catch (error) {
+      setDiscount(0)
+      setAppliedCoupon('')
+      toast.error(errorMessage(error, 'That coupon is not valid.'))
+    }
+  }
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!user) {
+      toast.info('Sign in to complete your order')
+      navigate('/login', { state: { from: '/checkout' } })
+      return
+    }
+    if (!lines.length) {
+      toast.error('Your cart is empty')
+      return
+    }
+
+    try {
+      const order = await createOrder.mutateAsync({
+        items: lines.map((line) => ({ animal: line.animalId, quantity: line.quantity })),
+        deliveryAddress: form,
+        deliveryFee,
+        couponCode: appliedCoupon || undefined,
+      })
+
+      if (payment === 'paystack' || payment === 'flutterwave') {
+        try {
+          const initialized = await initializePayment.mutateAsync({
+            orderId: order._id,
+            provider: payment,
+            email: user.email,
+          })
+          clear()
+          if (initialized.authorizationUrl) {
+            window.location.href = initialized.authorizationUrl
+            return
+          }
+          navigate(`/order-confirmed/${order._id}`)
+          return
+        } catch (paymentError) {
+          clear()
+          toast.info(errorMessage(paymentError, 'Order placed — online payment is unavailable right now.'))
+          navigate(`/order-confirmed/${order._id}`)
+          return
+        }
+      }
+
+      clear()
+      toast.success('Order placed successfully')
+      navigate(`/order-confirmed/${order._id}`)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    }
+  }
+
+  if (!lines.length) {
+    return (
+      <div className="container-page py-20 text-center">
+        <h1 className="text-2xl font-semibold">Nothing to check out</h1>
+        <p className="mt-2 text-ink-500">Add livestock to your cart first.</p>
+        <Button className="mt-6" onClick={() => navigate('/animals')}>
+          Browse livestock
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-ink-50 pb-20">
+      <div className="container-page py-10">
+        <h1 className="text-3xl font-semibold sm:text-4xl">Checkout</h1>
+        <p className="mt-2 text-ink-500">Delivery details, discounts and payment — all in one step.</p>
+
+        {!user ? (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-gold-200 bg-gold-50 px-5 py-4">
+            <p className="text-base text-ink-700">
+              You need an account to place an order — your cart is saved while you sign in.
+            </p>
+            <Button type="button" size="sm" onClick={() => navigate('/login', { state: { from: '/checkout' } })}>
+              Sign in to continue
+            </Button>
+          </div>
+        ) : null}
+
+        <form className="mt-8 grid gap-8 lg:grid-cols-[1.5fr_1fr]" onSubmit={submit}>
+          <div className="space-y-6">
+            <section className="card-surface p-6">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="flex items-center gap-2 text-lg font-semibold">
+                  <MapPin className="size-4 text-ink-400" /> Delivery address
+                </h2>
+                {profile.data?.addresses?.length ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={prefill}>
+                    Use saved address
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <Field label="Full name">
+                  <Input
+                    required
+                    value={form.fullName}
+                    onChange={(event) => setForm({ ...form, fullName: event.target.value })}
+                    placeholder="Amina Yusuf"
+                  />
+                </Field>
+                <Field label="Phone number">
+                  <Input
+                    required
+                    value={form.phone}
+                    onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                    placeholder="+234 801 234 5678"
+                  />
+                </Field>
+                <Field label="Street address" className="sm:col-span-2">
+                  <Input
+                    required
+                    value={form.addressLine}
+                    onChange={(event) => setForm({ ...form, addressLine: event.target.value })}
+                    placeholder="24 Awolowo Road, Ikoyi"
+                  />
+                </Field>
+                <Field label="City">
+                  <Input
+                    required
+                    value={form.city}
+                    onChange={(event) => setForm({ ...form, city: event.target.value })}
+                    placeholder="Lagos"
+                  />
+                </Field>
+                <Field label="State">
+                  <Select
+                    required
+                    value={form.state}
+                    onChange={(event) => setForm({ ...form, state: event.target.value })}
+                  >
+                    <option value="">Select state</option>
+                    {stateOptions.map((opt) => (
+                      <option key={`${opt.zoneId}-${opt.state}`} value={opt.state}>
+                        {opt.state} — {opt.zoneName} — {formatNaira(opt.fee)} ({opt.estMin}–{opt.estMax} days)
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            </section>
+
+            {/* Delivery zone is now selected by state above; fees show alongside each state in the state dropdown. */}
+
+            <section className="card-surface p-6">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Lock className="size-4 text-ink-400" /> Payment method
+              </h2>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {PAYMENT_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
+                    className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition ${
+                      payment === option.value
+                        ? 'border-moss-500 bg-moss-50/60 ring-4 ring-moss-500/10'
+                        : 'border-ink-200 hover:border-ink-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value={option.value}
+                      checked={payment === option.value}
+                      onChange={() => setPayment(option.value)}
+                      className="mt-1 size-4 text-moss-600 focus:ring-moss-500"
+                    />
+                    <span>
+                      <span className="flex items-center gap-2 text-base font-semibold">
+                        <option.icon className="size-4 text-ink-400" />
+                        {option.label}
+                      </span>
+                      <span className="mt-1 block text-sm text-ink-500">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {payment === 'bank_transfer' ? (
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="text-sm font-semibold">Bank transfer / OPay details</h3>
+                  <p className="mt-2 text-sm text-ink-700">Send payment to the account below and include your order number in the reference.</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-base font-medium">Account number</p>
+                      <p className="font-mono text-lg">7069185859</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-medium">Account name</p>
+                      <p>Ibrahim Adewale Shittu</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText('7069185859')
+                          toast.success('Account number copied')
+                        } catch {
+                          toast.info('Copy not supported — manually copy 7069185859')
+                        }
+                      }}
+                    >
+                      Copy account number
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          </div>
+
+          <aside className="card-surface h-fit p-6 lg:sticky lg:top-24">
+            <h2 className="text-lg font-semibold">Order summary</h2>
+
+            <ul className="mt-5 space-y-3">
+              {lines.map((line) => (
+                <li key={line.animalId} className="flex items-center gap-3">
+                  <span className="size-12 shrink-0 overflow-hidden rounded-xl bg-ink-100">
+                    {line.image ? <img src={line.image} alt="" className="size-full object-cover" /> : null}
+                  </span>
+                  <span className="flex-1 text-base">
+                    <span className="block font-medium">{line.name}</span>
+                    <span className="text-sm text-ink-400">Qty {line.quantity}</span>
+                  </span>
+                  <span className="text-base font-semibold">{formatNaira(line.unitPrice * line.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-5 border-t border-ink-100 pt-5">
+              <p className="field-label flex items-center gap-2">
+                <BadgePercent className="size-4 text-ink-400" /> Coupon code
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={couponCode}
+                  onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                  placeholder="SALLAH10"
+                />
+                <Button type="button" variant="outline" onClick={applyCoupon} loading={validateCoupon.isPending}>
+                  Apply
+                </Button>
+              </div>
+              {appliedCoupon ? (
+                <Badge tone="success" className="mt-2">
+                  {appliedCoupon} applied
+                </Badge>
+              ) : null}
+            </div>
+
+            <dl className="mt-5 space-y-2.5 border-t border-ink-100 pt-5 text-base">
+              <div className="flex justify-between">
+                <dt className="text-ink-500">Subtotal</dt>
+                <dd className="font-semibold">{formatNaira(subtotal)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-ink-500">Delivery</dt>
+                <dd className="font-semibold">{deliveryFee ? formatNaira(deliveryFee) : '—'}</dd>
+              </div>
+              {discount ? (
+                <div className="flex justify-between text-moss-600">
+                  <dt>Discount</dt>
+                  <dd className="font-semibold">−{formatNaira(discount)}</dd>
+                </div>
+              ) : null}
+            </dl>
+
+            <div className="mt-4 flex items-end justify-between border-t border-ink-100 pt-4">
+              <span className="font-semibold">Total</span>
+              <span className="font-display text-2xl font-semibold">{formatNaira(total)}</span>
+            </div>
+            <p className="mt-1 text-right text-sm text-ink-400">
+              Deposit today: {formatNaira(Math.round(total * 0.3))}
+            </p>
+
+            <Button
+              type="submit"
+              size="lg"
+              className="mt-6 w-full"
+              loading={createOrder.isPending || initializePayment.isPending}
+            >
+              Place order
+            </Button>
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-sm text-ink-400">
+              <Lock className="size-3" /> Secured by Paystack &amp; Flutterwave
+            </p>
+          </aside>
+        </form>
+      </div>
+    </div>
+  )
+}

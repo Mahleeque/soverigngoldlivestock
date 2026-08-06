@@ -1,0 +1,67 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const productionRequired = [
+  'MONGO_URI',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'CLIENT_ORIGINS',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+  'PAYSTACK_SECRET_KEY',
+  'PAYSTACK_WEBHOOK_SECRET',
+  'FLUTTERWAVE_SECRET_KEY',
+  'FLUTTERWAVE_WEBHOOK_SECRET',
+  'TERMII_API_KEY',
+  'SMTP_HOST',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'EMAIL_FROM'
+];
+
+const placeholderPattern = /replace_with|change_me|example\.com/i;
+
+for (const key of productionRequired) {
+  const value = process.env[key];
+  if (process.env.NODE_ENV === 'production' && (!value || placeholderPattern.test(value))) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+}
+
+export const env = {
+  nodeEnv: process.env.NODE_ENV || 'development',
+  port: Number(process.env.PORT || 8081),
+  apiVersion: process.env.API_VERSION || 'v1',
+  mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/sovereign_gold_livestock',
+  jwtAccessSecret: process.env.JWT_ACCESS_SECRET || 'development_access_secret_change_me',
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'development_refresh_secret_change_me',
+  jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+  cookieDomain: process.env.COOKIE_DOMAIN,
+  clientOrigins: (process.env.CLIENT_ORIGINS || 'http://localhost:3000,http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim()),
+  bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),
+  rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 900000),
+  rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 300),
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET
+  },
+  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+  paystackWebhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY,
+  flutterwaveSecretKey: process.env.FLUTTERWAVE_SECRET_KEY,
+  flutterwaveWebhookSecret: process.env.FLUTTERWAVE_WEBHOOK_SECRET,
+  termiiApiKey: process.env.TERMII_API_KEY,
+  termiiSenderId: process.env.TERMII_SENDER_ID || 'SGLivestock',
+  smtp: {
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.EMAIL_FROM || 'Sovereign Gold Livestock <no-reply@example.com>'
+  }
+};

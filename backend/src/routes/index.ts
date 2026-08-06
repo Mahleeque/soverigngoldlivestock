@@ -1,0 +1,30 @@
+import { Router } from 'express';
+import { healthCheck } from '../controllers/MiscController';
+import { adminRoutes } from './adminRoutes';
+import { animalRoutes } from './animalRoutes';
+import { authRoutes } from './authRoutes';
+import { checkoutRoutes } from './checkoutRoutes';
+import { conversationRoutes } from './conversationRoutes';
+import { miscRoutes } from './miscRoutes';
+import { notificationRoutes } from './notificationRoutes';
+import { orderRoutes } from './orderRoutes';
+import { paymentRoutes } from './paymentRoutes';
+import { reviewRoutes } from './reviewRoutes';
+import { uploadRoutes } from './uploadRoutes';
+import { userRoutes } from './userRoutes';
+
+export const apiRouter = Router();
+
+apiRouter.get('/health', healthCheck);
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/checkout', checkoutRoutes);
+apiRouter.use('/conversations', conversationRoutes);
+apiRouter.use('/animals', animalRoutes);
+apiRouter.use('/orders', orderRoutes);
+apiRouter.use('/payments', paymentRoutes);
+apiRouter.use('/users', userRoutes);
+apiRouter.use('/reviews', reviewRoutes);
+apiRouter.use('/uploads', uploadRoutes);
+apiRouter.use('/notifications', notificationRoutes);
+apiRouter.use('/admin', adminRoutes);
+apiRouter.use('/', miscRoutes);

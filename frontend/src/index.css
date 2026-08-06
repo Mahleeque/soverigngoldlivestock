@@ -1,0 +1,221 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink-50: #f6f7f6;
+  --color-ink-100: #e3e6e3;
+  --color-ink-200: #c6ccc6;
+  --color-ink-300: #9aa49b;
+  --color-ink-400: #6b776d;
+  --color-ink-500: #4a554c;
+  --color-ink-600: #36403a;
+  --color-ink-700: #26302b;
+  --color-ink-800: #18201d;
+  --color-ink-900: #0f1613;
+  --color-ink-950: #080d0b;
+
+  --color-gold-50: #fdf8ed;
+  --color-gold-100: #f8ecca;
+  --color-gold-200: #f0d78f;
+  --color-gold-300: #e6bd52;
+  --color-gold-400: #dfa72c;
+  --color-gold-500: #c98a17;
+  --color-gold-600: #a76812;
+  --color-gold-700: #854c13;
+  --color-gold-800: #6f3d17;
+  --color-gold-900: #5e3317;
+
+  --color-moss-50: #f1f8f3;
+  --color-moss-100: #ddeee2;
+  --color-moss-200: #bcddc7;
+  --color-moss-300: #8fc3a3;
+  --color-moss-400: #5da37c;
+  --color-moss-500: #3c8560;
+  --color-moss-600: #2b6b4c;
+  --color-moss-700: #23553e;
+  --color-moss-800: #1e4433;
+  --color-moss-900: #19382b;
+
+  --shadow-elevated: 0 24px 60px -30px rgb(8 13 11 / 0.45);
+  --radius-4xl: 2rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    font-size: 18px;
+  }
+
+  @media (max-width: 640px) {
+    html {
+      font-size: 17px;
+    }
+  }
+
+  body {
+    @apply bg-ink-50 font-sans text-[1.0625rem] leading-relaxed text-ink-700 antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight text-ink-900;
+  }
+
+  p {
+    @apply leading-relaxed;
+  }
+
+  a,
+  button {
+    @apply transition-colors duration-200;
+  }
+
+  ::selection {
+    @apply bg-gold-300 text-ink-900;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-5 sm:px-8;
+  }
+
+  .card-surface {
+    @apply rounded-3xl border border-ink-100 bg-white shadow-[0_1px_2px_rgb(8_13_11/0.04)] transition duration-300 ease-out;
+  }
+
+  .field-label {
+    @apply mb-2 block text-[0.9375rem] font-semibold text-ink-700;
+  }
+
+  .field-input {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-base text-ink-900 outline-none transition duration-200 placeholder:text-ink-300 focus:border-moss-500 focus:ring-4 focus:ring-moss-500/10 disabled:cursor-not-allowed disabled:bg-ink-50;
+  }
+
+  .hover-lift {
+    @apply transition duration-300 ease-out hover:-translate-y-1 hover:shadow-elevated;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-2xl bg-ink-100;
+  }
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out both;
+}
+
+@keyframes zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-zoom-in {
+  animation: zoom-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slow-pan {
+  from {
+    transform: scale(1.06) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.16) translate3d(-1.5%, -1.5%, 0);
+  }
+}
+
+.animate-slow-pan {
+  animation: slow-pan 22s ease-in-out infinite alternate;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 260% 0;
+  }
+}
+
+.animate-shimmer {
+  background-image: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / 0.35) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* Scroll-triggered reveal, toggled by the Reveal component. */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
