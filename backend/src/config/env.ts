@@ -6,19 +6,7 @@ const productionRequired = [
   'MONGO_URI',
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET',
-  'CLIENT_ORIGINS',
-  'CLOUDINARY_CLOUD_NAME',
-  'CLOUDINARY_API_KEY',
-  'CLOUDINARY_API_SECRET',
-  'PAYSTACK_SECRET_KEY',
-  'PAYSTACK_WEBHOOK_SECRET',
-  'FLUTTERWAVE_SECRET_KEY',
-  'FLUTTERWAVE_WEBHOOK_SECRET',
-  'TERMII_API_KEY',
-  'SMTP_HOST',
-  'SMTP_USER',
-  'SMTP_PASS',
-  'EMAIL_FROM'
+  'CLIENT_ORIGINS'
 ];
 
 const placeholderPattern = /replace_with|change_me|example\.com/i;

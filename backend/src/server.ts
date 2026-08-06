@@ -7,7 +7,7 @@ const server = http.createServer(app);
 
 const start = async (): Promise<void> => {
   await connectDatabase();
-  server.listen(env.port, () => {
+  server.listen(env.port, '0.0.0.0', () => {
     console.info(`Sovereign Gold API running on port ${env.port}`);
   });
 };
