@@ -6,6 +6,7 @@ import { notFound } from './middlewares/notFound';
 import { apiRouter } from './routes';
 import { swaggerSpec } from './docs/swagger';
 import { env } from './config/env';
+import { sendSuccess } from './utils/apiResponse';
 
 export const app = express();
 
@@ -20,6 +21,12 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+app.get('/', (_req, res) =>
+  sendSuccess(res, 'Sovereign Gold Livestock API is running', {
+    health: `/api/${env.apiVersion}/health`,
+    docs: `/api/${env.apiVersion}/docs`
+  })
+);
 app.use(`/api/${env.apiVersion}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use(`/api/${env.apiVersion}`, apiRouter);
 
