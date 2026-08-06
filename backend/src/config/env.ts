@@ -18,6 +18,14 @@ for (const key of productionRequired) {
   }
 }
 
+if (process.env.NODE_ENV === 'production') {
+  console.info('[env] Production mode enabled');
+  console.info(`[env] MONGO_URI configured: ${Boolean(process.env.MONGO_URI)}`);
+  console.info(`[env] JWT_ACCESS_SECRET configured: ${Boolean(process.env.JWT_ACCESS_SECRET)}`);
+  console.info(`[env] JWT_REFRESH_SECRET configured: ${Boolean(process.env.JWT_REFRESH_SECRET)}`);
+  console.info(`[env] CLIENT_ORIGINS configured: ${Boolean(process.env.CLIENT_ORIGINS)}`);
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 8081),
