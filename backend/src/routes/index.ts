@@ -16,6 +16,13 @@ import { userRoutes } from './userRoutes';
 export const apiRouter = Router();
 
 apiRouter.get('/health', healthCheck);
+apiRouter.get('/', (_req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Sovereign Gold Livestock API is running',
+    docs: '/api/v1/docs'
+  });
+});
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/checkout', checkoutRoutes);
 apiRouter.use('/conversations', conversationRoutes);
