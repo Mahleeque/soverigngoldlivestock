@@ -60,6 +60,10 @@ export const LoginPage = () => {
       if (res.requireOtp) {
         setStep('otp')
         toast.success('6-digit login code sent to your email!')
+      } else if (res.user) {
+        toast.success(`Welcome back, ${res.user.firstName}!`)
+        const from = (location.state as { from?: string } | null)?.from
+        navigate(from ?? (isStaff(res.user.role) ? '/admin' : '/account'))
       }
     } catch (error) {
       toast.error(errorMessage(error, 'Invalid email address or password'))
@@ -67,6 +71,7 @@ export const LoginPage = () => {
       setLoading(false)
     }
   }
+
 
   const handleResendOtp = async () => {
     if (!form.email.trim() || resending) return

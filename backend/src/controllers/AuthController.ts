@@ -20,8 +20,12 @@ export const register = catchAsync(async (req, res) => {
 
 export const login = catchAsync(async (req, res) => {
   const result = await authService.login(req.body.email, req.body.password);
-  return sendSuccess(res, 'Login verification code sent', result);
+  if (!result.requireOtp && (result as any).refreshToken) {
+    res.cookie('refreshToken', (result as any).refreshToken, getRefreshCookieOptions());
+  }
+  return sendSuccess(res, result.requireOtp ? 'Login verification code sent' : 'Login successful', result);
 });
+
 
 export const verifyLoginOtp = catchAsync(async (req, res) => {
   const result = await authService.verifyLoginOtp(req.body.email, req.body.otp);

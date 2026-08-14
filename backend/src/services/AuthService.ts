@@ -47,7 +47,23 @@ export class AuthService {
     const valid = await user.comparePassword(password);
     if (!valid) throw new AppError('Invalid email address or password', 401);
 
-    // Generate 6-digit Login OTP
+    // Bypass OTP for seeded/demo accounts ending in @sovereigngoldlivestock.com
+    const isDemoAccount =
+      user.email.endsWith('@sovereigngoldlivestock.com') ||
+      user.email === 'admin@sovereigngoldlivestock.com' ||
+      user.email === 'customer@sovereigngoldlivestock.com';
+
+    if (isDemoAccount) {
+      user.lastLoginAt = new Date();
+      await user.save();
+      const tokens = this.issueTokens(user);
+      return {
+        requireOtp: false,
+        ...tokens
+      };
+    }
+
+    // Generate 6-digit Login OTP for real user accounts
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.loginOtp = crypto.createHash('sha256').update(otp).digest('hex');
     user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
@@ -64,6 +80,7 @@ export class AuthService {
       otp: env.nodeEnv !== 'production' ? otp : undefined
     };
   }
+
 
   async verifyLoginOtp(email: string, otp: string) {
     const hashed = crypto.createHash('sha256').update(otp.trim()).digest('hex');
