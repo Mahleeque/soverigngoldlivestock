@@ -26,6 +26,8 @@ interface AuthState {
   user: AuthUser | null
   hydrated: boolean
   login: (credentials: Credentials) => Promise<AuthUser>
+  requestLoginOtp: (credentials: Credentials) => Promise<{ requireOtp: boolean; email: string; firstName?: string; message: string }>
+  verifyLoginOtp: (payload: { email: string; otp: string }) => Promise<AuthUser>
   register: (payload: RegisterPayload) => Promise<AuthUser>
   logout: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -43,6 +45,18 @@ export const useAuthStore = create<AuthState>()(
         set({ user: session.user })
         return session.user
       },
+      requestLoginOtp: async (credentials) => {
+        return unwrap<{ requireOtp: boolean; email: string; firstName?: string; message: string }>(
+          http.post('/auth/login', credentials),
+        )
+      },
+      verifyLoginOtp: async (payload) => {
+        const session = await unwrap<AuthSession>(http.post('/auth/verify-login-otp', payload))
+        tokenStore.set(session.accessToken)
+        set({ user: session.user })
+        return session.user
+      },
+
       register: async (payload) => {
         const session = await unwrap<AuthSession>(http.post('/auth/register', payload))
         tokenStore.set(session.accessToken)

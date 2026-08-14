@@ -40,23 +40,64 @@ const AuthShell = ({ title, subtitle, children, footer }: { title: string; subti
 )
 
 export const LoginPage = () => {
-  const login = useAuthStore((state) => state.login)
+  const requestLoginOtp = useAuthStore((state) => state.requestLoginOtp)
+  const verifyLoginOtp = useAuthStore((state) => state.verifyLoginOtp)
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
   const location = useLocation()
-  const [form, setForm] = useState({ email: '', password: '' })
-  const [loading, setLoading] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const [step, setStep] = useState<'credentials' | 'otp'>('credentials')
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+
+  const handleCredentialsSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setLoading(true)
     try {
-      const user = await login(form)
-      toast.success(`Welcome back, ${user.firstName}`)
-      const from = (location.state as { from?: string } | null)?.from
-      navigate(from ?? (isStaff(user.role) ? '/admin' : '/account'))
+      const res = await requestLoginOtp(form)
+      if (res.requireOtp) {
+        setStep('otp')
+        toast.success('6-digit login code sent to your email!')
+      }
     } catch (error) {
-      toast.error(errorMessage(error, 'Invalid email or password'))
+      toast.error(errorMessage(error, 'Invalid email address or password'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    if (!form.email.trim() || resending) return
+    setResending(true)
+    try {
+      await requestLoginOtp(form)
+      toast.success('New 6-digit login code sent!')
+    } catch (error) {
+      toast.error(errorMessage(error, 'Failed to resend login code'))
+    } finally {
+      setResending(false)
+    }
+  }
+
+  const handleOtpSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (otp.trim().length !== 6) {
+      toast.error('Please enter the 6-digit verification code')
+      return
+    }
+    setLoading(true)
+    try {
+      const loggedUser = await verifyLoginOtp({
+        email: form.email.trim().toLowerCase(),
+        otp: otp.trim(),
+      })
+      toast.success(`Welcome back, ${loggedUser.firstName}!`)
+      const from = (location.state as { from?: string } | null)?.from
+      navigate(from ?? (isStaff(loggedUser.role) ? '/admin' : '/account'))
+    } catch (error) {
+      toast.error(errorMessage(error, 'Invalid or expired verification code'))
     } finally {
       setLoading(false)
     }
@@ -66,58 +107,129 @@ export const LoginPage = () => {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to manage your orders and reservations."
+      title={step === 'otp' ? 'Two-Factor Verification' : 'Welcome back'}
+      subtitle={
+        step === 'otp'
+          ? `Enter the 6-digit security code sent to ${form.email}`
+          : 'Sign in to manage your orders, livestock reservations, and account.'
+      }
       footer={
-        <>
-          New here?{' '}
-          <Link to="/register" className="font-semibold text-moss-600 hover:underline">
-            Create an account
-          </Link>
-        </>
+        step === 'otp' ? (
+          <button
+            type="button"
+            onClick={() => {
+              setStep('credentials')
+              setOtp('')
+            }}
+            className="font-semibold text-moss-600 hover:underline cursor-pointer"
+          >
+            ← Back to sign in
+          </button>
+        ) : (
+          <>
+            New here?{' '}
+            <Link to="/register" className="font-semibold text-moss-600 hover:underline">
+              Create an account
+            </Link>
+          </>
+        )
       }
     >
-      <form className="mt-8 space-y-4" onSubmit={submit}>
-        <Field label="Email address">
-          <div className="relative">
-            <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
-            <Input
-              required
-              type="email"
-              autoComplete="email"
-              className="pl-11"
-              value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-              placeholder="you@example.com"
-            />
+      {step === 'otp' ? (
+        <form className="mt-8 space-y-5" onSubmit={handleOtpSubmit}>
+          <div className="rounded-2xl bg-moss-50/90 border border-moss-200 p-4 text-xs text-moss-900 flex items-center justify-between">
+            <span>
+              Code sent to: <strong>{form.email}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('credentials')
+                setOtp('')
+              }}
+              className="text-xs font-semibold text-moss-700 hover:underline cursor-pointer"
+            >
+              Change
+            </button>
           </div>
-        </Field>
-        <Field label="Password">
-          <div className="relative">
-            <Lock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
-            <Input
-              required
-              type="password"
-              autoComplete="current-password"
-              className="pl-11"
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              placeholder="••••••••"
-            />
+
+          <Field label="6-Digit Verification Code" hint="Check your inbox (and spam folder) for the login code.">
+            <div className="relative">
+              <KeyRound className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+              <Input
+                required
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                className="pl-11 font-mono text-center tracking-[0.3em] text-xl font-bold"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+              />
+            </div>
+          </Field>
+
+          <Button type="submit" size="lg" className="w-full" loading={loading} icon={<ArrowRight className="size-4" />}>
+            Verify & Sign in
+          </Button>
+
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              disabled={resending}
+              onClick={handleResendOtp}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-900 transition disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`size-3.5 ${resending ? 'animate-spin' : ''}`} />
+              <span>{resending ? 'Sending new code...' : 'Didn’t get code? Resend OTP'}</span>
+            </button>
           </div>
-        </Field>
-        <div className="flex justify-end">
-          <Link to="/forgot-password" className="text-base font-medium text-ink-500 hover:text-ink-800">
-            Forgot password?
-          </Link>
-        </div>
-        <Button type="submit" size="lg" className="w-full" loading={loading} icon={<ArrowRight className="size-4" />}>
-          Sign in
-        </Button>
-      </form>
+        </form>
+      ) : (
+        <form className="mt-8 space-y-4" onSubmit={handleCredentialsSubmit}>
+          <Field label="Email address">
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+              <Input
+                required
+                type="email"
+                autoComplete="email"
+                className="pl-11"
+                value={form.email}
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
+                placeholder="you@example.com"
+              />
+            </div>
+          </Field>
+          <Field label="Password">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+              <Input
+                required
+                type="password"
+                autoComplete="current-password"
+                className="pl-11"
+                value={form.password}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                placeholder="••••••••"
+              />
+            </div>
+          </Field>
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-base font-medium text-ink-500 hover:text-ink-800">
+              Forgot password?
+            </Link>
+          </div>
+          <Button type="submit" size="lg" className="w-full" loading={loading} icon={<ArrowRight className="size-4" />}>
+            Sign in
+          </Button>
+        </form>
+      )}
     </AuthShell>
   )
 }
+
 
 export const RegisterPage = () => {
   const register = useAuthStore((state) => state.register)

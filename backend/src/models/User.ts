@@ -22,6 +22,8 @@ export interface IUser extends Document, SoftDeleteFields {
   passwordResetExpires?: Date;
   passwordResetOtp?: string;
   passwordResetOtpExpires?: Date;
+  loginOtp?: string;
+  loginOtpExpires?: Date;
   emailVerificationOtp?: string;
   emailVerificationOtpExpires?: Date;
   addresses: {
@@ -66,8 +68,11 @@ const userSchema = new Schema<IUser>(
     passwordResetExpires: { type: Date, select: false },
     passwordResetOtp: { type: String, select: false },
     passwordResetOtpExpires: { type: Date, select: false },
+    loginOtp: { type: String, select: false },
+    loginOtpExpires: { type: Date, select: false },
     emailVerificationOtp: { type: String, select: false },
     emailVerificationOtpExpires: { type: Date, select: false },
+
 
     addresses: [
       {

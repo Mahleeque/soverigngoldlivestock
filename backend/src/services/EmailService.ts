@@ -68,11 +68,19 @@ export class EmailService {
   }
 
   sendOtp(to: string, otp: string, purpose: 'reset' | 'verify' | 'login' = 'reset', name: string = 'Valued Customer') {
-    const isReset = purpose === 'reset';
-    const title = isReset ? 'Password Reset Code' : 'Verification Code';
-    const message = isReset
-      ? 'Use this 6-digit verification code to reset your Sovereign Gold account password:'
-      : 'Use this 6-digit verification code to confirm your Sovereign Gold account:';
+    const title =
+      purpose === 'login'
+        ? 'Login Verification Code'
+        : purpose === 'reset'
+          ? 'Password Reset Code'
+          : 'Account Verification Code';
+    const message =
+      purpose === 'login'
+        ? 'Use this 6-digit verification code to complete your Sovereign Gold account login:'
+        : purpose === 'reset'
+          ? 'Use this 6-digit verification code to reset your Sovereign Gold account password:'
+          : 'Use this 6-digit verification code to confirm your Sovereign Gold account:';
+
 
     const html = `
       <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">

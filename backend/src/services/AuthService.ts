@@ -47,8 +47,42 @@ export class AuthService {
     const valid = await user.comparePassword(password);
     if (!valid) throw new AppError('Invalid email address or password', 401);
 
+    // Generate 6-digit Login OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.loginOtp = crypto.createHash('sha256').update(otp).digest('hex');
+    user.loginOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    await user.save();
+
+    console.info(`🔑 [AuthService] Login OTP for ${user.email} => [ ${otp} ]`);
+    await emailService.sendOtp(user.email, otp, 'login', user.firstName);
+
+    return {
+      requireOtp: true,
+      email: user.email,
+      firstName: user.firstName,
+      message: '6-digit login verification code sent to your email inbox',
+      otp: env.nodeEnv !== 'production' ? otp : undefined
+    };
+  }
+
+  async verifyLoginOtp(email: string, otp: string) {
+    const hashed = crypto.createHash('sha256').update(otp.trim()).digest('hex');
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      loginOtp: hashed,
+      loginOtpExpires: { $gt: new Date() },
+      isDeleted: false
+    }).select('+loginOtp +loginOtpExpires');
+
+    if (!user) {
+      throw new AppError('Invalid or expired 6-digit login verification code', 400);
+    }
+
+    user.loginOtp = undefined;
+    user.loginOtpExpires = undefined;
     user.lastLoginAt = new Date();
     await user.save();
+
     return this.issueTokens(user);
   }
 
@@ -58,6 +92,7 @@ export class AuthService {
     if (user.isBlocked) throw new AppError('This account has been blocked', 403);
     return this.issueTokens(user);
   }
+
 
   async logout(userId: string) {
     await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
