@@ -3,34 +3,107 @@ import { env } from '../config/env';
 
 export class EmailService {
   private transporter() {
-    if (!env.smtp.host || !env.smtp.user || !env.smtp.pass) return null;
+    if (!env.smtp.user || !env.smtp.pass) return null;
+
+    const isGmail = env.smtp.host?.includes('gmail') || env.smtp.user?.includes('@gmail.com');
+
+    if (isGmail) {
+      return nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: env.smtp.user, pass: env.smtp.pass },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000
+      });
+    }
+
     return nodemailer.createTransport({
-      host: env.smtp.host,
-      port: env.smtp.port,
-      secure: env.smtp.port === 465,
-      auth: { user: env.smtp.user, pass: env.smtp.pass }
+      host: env.smtp.host || 'smtp.gmail.com',
+      port: Number(env.smtp.port) || 587,
+      secure: Number(env.smtp.port) === 465,
+      auth: { user: env.smtp.user, pass: env.smtp.pass },
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000
     });
   }
 
-  async send(to: string, subject: string, html: string): Promise<void> {
+  async send(to: string, subject: string, html: string): Promise<boolean> {
     const transporter = this.transporter();
     if (!transporter) {
-      console.info(`Email skipped: ${subject} -> ${to}`);
-      return;
+      console.warn(`[EmailService] SMTP credentials not set. Skipped sending "${subject}" to ${to}`);
+      return false;
     }
-    await transporter.sendMail({ from: env.smtp.from, to, subject, html });
+    try {
+      await transporter.sendMail({
+        from: env.smtp.from || `Sovereign Gold Livestock <${env.smtp.user}>`,
+        to,
+        subject,
+        html
+      });
+      console.info(`[EmailService] ✓ Successfully delivered "${subject}" to ${to}`);
+      return true;
+    } catch (error: any) {
+      console.error(`[EmailService] ✗ SMTP Delivery Error to ${to}:`, error?.message || error);
+      return false;
+    }
   }
 
   welcome(to: string, name: string) {
-    return this.send(to, 'Welcome to Sovereign Gold Livestock', `<p>Hello ${name}, welcome to Sovereign Gold Livestock.</p>`);
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden;">
+        <div style="background: #0f172a; padding: 28px; text-align: center;">
+          <h1 style="color: #f59e0b; margin: 0; font-size: 22px; letter-spacing: 0.05em;">SOVEREIGN GOLD LIVESTOCK</h1>
+        </div>
+        <div style="padding: 32px 24px; color: #1e293b; line-height: 1.6;">
+          <h2 style="margin-top: 0; font-size: 20px; color: #0f172a;">Welcome, ${name}!</h2>
+          <p>Thank you for joining Sovereign Gold Livestock. You can now browse verified livestock breeds, reserve animals, and track farm deliveries across Nigeria.</p>
+        </div>
+      </div>
+    `;
+    return this.send(to, 'Welcome to Sovereign Gold Livestock', html);
   }
 
-  passwordReset(to: string, token: string) {
-    return this.send(to, 'Reset your password', `<p>Use this reset token: <strong>${token}</strong></p>`);
+  passwordReset(to: string, resetUrl: string, name: string = 'Valued Customer') {
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+        <div style="background: #1c3829; padding: 28px; text-align: center;">
+          <h1 style="color: #fbbf24; margin: 0; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase;">SOVEREIGN GOLD LIVESTOCK</h1>
+        </div>
+        <div style="padding: 36px 28px; color: #1e293b; line-height: 1.6;">
+          <h2 style="margin-top: 0; font-size: 20px; color: #1c3829;">Reset Your Password</h2>
+          <p>Hello ${name},</p>
+          <p>We received a request to reset your password for your Sovereign Gold Livestock account. Click the button below to choose a new password:</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${resetUrl}" style="background: #1c3829; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 9999px; font-weight: bold; font-size: 15px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">Reset Password</a>
+          </div>
+          <p style="font-size: 13px; color: #64748b;">This password reset link will expire in 60 minutes. If you did not make this request, you can safely ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #94a3b8; word-break: break-all;">If the button doesn't work, copy and paste this link into your browser:<br/><a href="${resetUrl}" style="color: #1c3829;">${resetUrl}</a></p>
+        </div>
+      </div>
+    `;
+    return this.send(to, 'Reset Your Password - Sovereign Gold Livestock', html);
   }
 
-  orderConfirmation(to: string, orderNumber: string) {
-    return this.send(to, 'Order confirmation', `<p>Your order ${orderNumber} has been received.</p>`);
+  orderConfirmation(to: string, orderNumber: string, total: string, name: string = 'Valued Customer') {
+    const html = `
+      <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden;">
+        <div style="background: #1c3829; padding: 28px; text-align: center;">
+          <h1 style="color: #fbbf24; margin: 0; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase;">SOVEREIGN GOLD LIVESTOCK</h1>
+        </div>
+        <div style="padding: 36px 28px; color: #1e293b; line-height: 1.6;">
+          <h2 style="margin-top: 0; font-size: 20px; color: #1c3829;">Order Confirmed: ${orderNumber}</h2>
+          <p>Hello ${name},</p>
+          <p>Thank you for your order. We have received your order <strong>${orderNumber}</strong> for <strong>${total}</strong>.</p>
+          <p>Our sales desk is preparing your livestock for dispatch. You can log into your account anytime to view live delivery updates.</p>
+        </div>
+      </div>
+    `;
+    return this.send(to, `Order Confirmation - ${orderNumber}`, html);
   }
 }
 

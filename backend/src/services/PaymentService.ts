@@ -60,7 +60,7 @@ export class PaymentService {
   ): Promise<string> {
     if (provider === PaymentProvider.Paystack) {
       if (!env.paystackSecretKey) throw new AppError('Paystack is not configured', 503);
-      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+      const response = await this.postProviderRequest('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${env.paystackSecretKey}`,
@@ -82,7 +82,7 @@ export class PaymentService {
 
     if (provider === PaymentProvider.Flutterwave) {
       if (!env.flutterwaveSecretKey) throw new AppError('Flutterwave is not configured', 503);
-      const response = await fetch('https://api.flutterwave.com/v3/payments', {
+      const response = await this.postProviderRequest('https://api.flutterwave.com/v3/payments', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${env.flutterwaveSecretKey}`,
@@ -107,6 +107,14 @@ export class PaymentService {
     }
 
     throw new AppError('Unsupported payment provider', 400);
+  }
+
+  private async postProviderRequest(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch {
+      throw new AppError('Unable to reach payment provider. Please try again later.', 502);
+    }
   }
 }
 

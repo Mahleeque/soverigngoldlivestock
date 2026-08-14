@@ -5,7 +5,7 @@ import { AccountLayout } from '@/components/layout/AccountLayout'
 import { AdminLayout } from '@/components/layout/AdminLayout'
 import { RootLayout } from '@/components/layout/RootLayout'
 import { AnimalDetailPage } from '@/pages/AnimalDetail'
-import { ForgotPasswordPage, LoginPage, RegisterPage } from '@/pages/Auth'
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '@/pages/Auth'
 import { CartPage } from '@/pages/Cart'
 import { CatalogPage } from '@/pages/Catalog'
 import { CheckoutPage } from '@/pages/Checkout'
@@ -26,9 +26,11 @@ import {
   AdminDeliveryPage,
   AdminInventoryPage,
   AdminMessagesPage,
+  AdminOrdersPage,
   AdminSecurityPage,
 } from '@/pages/admin'
 import { AdminUsersPage } from '@/pages/admin/users'
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +52,8 @@ const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
+      { path: '/reset-password/:token', element: <ResetPasswordPage /> },
       {
         path: '/order-confirmed/:id',
         element: (
@@ -83,6 +87,7 @@ const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <AdminDashboardPage /> },
+          { path: 'orders', element: <AdminOrdersPage /> },
           { path: 'messages', element: <AdminMessagesPage /> },
           { path: 'inventory', element: <AdminInventoryPage /> },
           {
@@ -110,3 +115,4 @@ export const App = () => (
 )
 
 export default App
+

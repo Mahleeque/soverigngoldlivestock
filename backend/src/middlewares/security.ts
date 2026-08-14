@@ -10,8 +10,19 @@ import { env } from '../config/env';
 
 type Sanitizable = string | number | boolean | null | undefined | Sanitizable[] | { [key: string]: Sanitizable };
 
+const SENSITIVE_FIELDS = new Set([
+  'password',
+  'newPassword',
+  'currentPassword',
+  'confirmPassword',
+  'token',
+  'refreshToken',
+  'accessToken',
+  'rawBody'
+]);
+
 const escapeHtml = (value: string): string =>
-  value.replace(/[&<>"']/g, char => {
+  value.replace(/[&<>"']/g, (char) => {
     const entities: Record<string, string> = {
       '&': '&amp;',
       '<': '&lt;',
@@ -22,17 +33,24 @@ const escapeHtml = (value: string): string =>
     return entities[char];
   });
 
-const sanitizeValue = (value: Sanitizable): Sanitizable => {
-  if (typeof value === 'string') return escapeHtml(value).trim();
-  if (Array.isArray(value)) return value.map(item => sanitizeValue(item));
+const sanitizeValue = (value: Sanitizable, keyName?: string): Sanitizable => {
+  if (typeof value === 'string') {
+    if (keyName && SENSITIVE_FIELDS.has(keyName)) {
+      return value.trim();
+    }
+    return escapeHtml(value).trim();
+  }
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(item, keyName));
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeValue(entry)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, sanitizeValue(entry, key)])
+    );
   }
   return value;
 };
 
 const stripOperators = (value: Sanitizable): Sanitizable => {
-  if (Array.isArray(value)) return value.map(item => stripOperators(item));
+  if (Array.isArray(value)) return value.map((item) => stripOperators(item));
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
@@ -56,14 +74,34 @@ const sanitizeRequestInput = (): RequestHandler => (req, _res, next) => {
   next();
 };
 
+const isOriginAllowed = (origin: string | undefined): boolean => {
+  if (!origin) return true;
+  const normalizedOrigin = origin.replace(/\/+$/, '');
+
+  if (env.clientOrigins.some((allowed) => allowed.replace(/\/+$/, '') === normalizedOrigin)) {
+    return true;
+  }
+
+  // In development, automatically allow localhost and 127.0.0.1
+  if (env.nodeEnv !== 'production') {
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const applySecurityMiddleware = (app: Express): void => {
   app.set('trust proxy', 1);
   app.use(helmet());
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || env.clientOrigins.includes(origin)) return callback(null, true);
-        return callback(new Error('Not allowed by CORS'));
+        if (isOriginAllowed(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
       },
       credentials: true
     })

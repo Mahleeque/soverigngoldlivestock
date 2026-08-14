@@ -221,6 +221,7 @@ export const HomePage = () => {
 
       <section className="container-page pb-20">
         <div className="relative overflow-hidden rounded-4xl bg-ink-950">
+
           <img src={CTA_IMAGE} alt="" className="absolute inset-0 size-full object-cover opacity-35" />
           <div className="relative grid gap-8 p-10 lg:grid-cols-[1.4fr_1fr] lg:items-center lg:p-14">
             <div>
@@ -251,3 +252,4 @@ export const HomePage = () => {
     </div>
   )
 }
+

@@ -1,13 +1,17 @@
 import { Model, UpdateQuery } from 'mongoose';
 import { Coupon } from '../models/Coupon';
 import { DeliveryZone } from '../models/DeliveryZone';
+import { Order } from '../models/Order';
+import { Payment } from '../models/Payment';
 import { WebsiteSettings } from '../models/WebsiteSettings';
 import { AppError } from '../utils/appError';
 
 const resources = {
   deliveryZones: DeliveryZone,
   coupons: Coupon,
-  settings: WebsiteSettings
+  settings: WebsiteSettings,
+  orders: Order,
+  payments: Payment
 } as const;
 
 type ResourceName = keyof typeof resources;
@@ -20,6 +24,9 @@ export class AdminResourceService {
   }
 
   list(name: string) {
+    if (name === 'orders') {
+      return this.model(name).find({ isDeleted: false }).populate('customer', 'firstName lastName email phone').sort('-createdAt');
+    }
     return this.model(name).find({ isDeleted: false }).sort('-createdAt');
   }
 

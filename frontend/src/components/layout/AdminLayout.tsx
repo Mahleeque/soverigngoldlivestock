@@ -1,10 +1,11 @@
 import clsx from 'clsx'
-import { BadgePercent, Beef, KeyRound, LayoutDashboard, MessageSquare, Truck, Users } from 'lucide-react'
+import { BadgePercent, Beef, KeyRound, LayoutDashboard, MessageSquare, Package, Truck, Users } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 
 const LINKS = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard, title: 'Operations overview' },
+  { to: '/admin/orders', label: 'Orders', icon: Package, title: 'Customer orders' },
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, title: 'Client messages' },
   { to: '/admin/inventory', label: 'Livestock', icon: Beef, title: 'Livestock inventory' },
   { to: '/admin/users', label: 'Users', icon: Users, title: 'User management', adminOnly: true },

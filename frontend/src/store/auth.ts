@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { http, tokenStore, unwrap } from '@/lib/api'
+import { useCartStore } from '@/store/cart'
 import type { AuthUser } from '@/types'
 
 interface Credentials {
@@ -54,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           tokenStore.clear()
           set({ user: null })
+          useCartStore.getState().clear()
         }
       },
       refreshProfile: async () => {
@@ -64,11 +66,13 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           tokenStore.clear()
           set({ user: null })
+          useCartStore.getState().clear()
         }
       },
       clearSession: () => {
         tokenStore.clear()
         set({ user: null })
+        useCartStore.getState().clear()
       },
     }),
     {

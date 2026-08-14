@@ -1,19 +1,23 @@
 import { ArrowRight, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, ButtonLink } from '@/components/ui/Button'
-import { EmptyState } from '@/components/ui'
+import { ConfirmDialog, EmptyState } from '@/components/ui'
 import { formatNaira } from '@/lib/format'
-import { cartDeposit, cartSubtotal, useCartStore } from '@/store/cart'
+import { cartDeposit, cartSubtotal, useCartStore, type CartLine } from '@/store/cart'
 
 export const CartPage = () => {
   const { lines, setQuantity, remove, clear } = useCartStore()
   const subtotal = cartSubtotal(lines)
   const deposit = cartDeposit(lines)
 
+  const [itemToRemove, setItemToRemove] = useState<CartLine | null>(null)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+
   if (!lines.length) {
     return (
       <div className="container-page py-20">
-          <EmptyState
+        <EmptyState
           icon={<ShoppingCart className="size-5" />}
           title="Your cart is empty"
           description="Browse the catalogue and add livestock to get started."
@@ -60,8 +64,7 @@ export const CartPage = () => {
                   <button
                     type="button"
                     onClick={() => setQuantity(line.animalId, line.quantity + 1)}
-                    disabled={line.quantity >= line.maxQuantity}
-                    className="flex size-8 items-center justify-center rounded-full hover:bg-ink-50 disabled:opacity-40"
+                    className="flex size-8 items-center justify-center rounded-full hover:bg-ink-50"
                     aria-label="Increase"
                   >
                     <Plus className="size-3.5" />
@@ -72,10 +75,7 @@ export const CartPage = () => {
                   <p className="font-semibold">{formatNaira(line.unitPrice * line.quantity)}</p>
                   <button
                     type="button"
-                    onClick={() => {
-                      // eslint-disable-next-line no-restricted-globals
-                      if (confirm(`Remove ${line.name} from your cart?`)) remove(line.animalId)
-                    }}
+                    onClick={() => setItemToRemove(line)}
                     className="mt-1 inline-flex items-center gap-1 text-sm text-ink-400 hover:text-red-600"
                   >
                     <Trash2 className="size-3.5" /> Remove
@@ -86,11 +86,7 @@ export const CartPage = () => {
 
             <Button
               variant="ghost"
-              onClick={() => {
-                // confirm destructive action
-                // eslint-disable-next-line no-restricted-globals
-                if (confirm('Clear your cart? This will remove all reserved items.')) clear()
-              }}
+              onClick={() => setShowClearConfirm(true)}
               className="text-red-600 hover:bg-red-50"
             >
               Clear cart
@@ -108,22 +104,59 @@ export const CartPage = () => {
                 <dt className="text-ink-500">Deposit option</dt>
                 <dd className="font-semibold">{formatNaira(deposit)}</dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-ink-500">Delivery</dt>
-                <dd className="text-ink-400">Calculated at checkout</dd>
-              </div>
             </dl>
-            <div className="mt-5 flex justify-between border-t border-ink-100 pt-4">
+
+            <div className="mt-6 flex items-end justify-between border-t border-ink-100 pt-4">
               <span className="font-semibold">Estimated total</span>
-              <span className="font-display text-xl font-semibold">{formatNaira(subtotal)}</span>
+              <span className="font-display text-2xl font-semibold">{formatNaira(subtotal)}</span>
             </div>
-            <ButtonLink to="/checkout" className="mt-6 w-full" size="lg" icon={<ArrowRight className="size-4" />}>
+
+            <ButtonLink to="/checkout" size="lg" className="mt-6 w-full" icon={<ArrowRight className="size-4" />}>
               Proceed to checkout
             </ButtonLink>
-            <p className="mt-3 text-center text-sm text-ink-400">Coupons and delivery zones are applied next.</p>
           </aside>
         </div>
       </div>
+
+      {/* Remove Single Item Modal */}
+      <ConfirmDialog
+        isOpen={Boolean(itemToRemove)}
+        onClose={() => setItemToRemove(null)}
+        onConfirm={() => {
+          if (itemToRemove) {
+            remove(itemToRemove.animalId)
+            setItemToRemove(null)
+          }
+        }}
+        title="Remove Item from Cart"
+        description="Are you sure you want to remove this livestock item from your shopping cart?"
+        confirmText="Yes, Remove"
+        cancelText="Keep Item"
+        variant="danger"
+        itemSummary={
+          itemToRemove
+            ? {
+                label: 'Item to remove',
+                value: `${itemToRemove.name} (Qty ${itemToRemove.quantity}) — ${formatNaira(itemToRemove.unitPrice * itemToRemove.quantity)}`,
+              }
+            : undefined
+        }
+      />
+
+      {/* Clear Entire Cart Modal */}
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+          clear()
+          setShowClearConfirm(false)
+        }}
+        title="Clear Entire Cart"
+        description="Are you sure you want to empty your shopping cart? All reserved livestock items will be removed."
+        confirmText="Yes, Clear Cart"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   )
 }

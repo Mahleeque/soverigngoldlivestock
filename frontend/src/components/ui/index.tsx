@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { AlertCircle, CheckCircle2, Info, Star, X } from 'lucide-react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { useToastStore } from '@/store/toast'
+export * from './ConfirmDialog'
 
 export const Badge = ({
   children,

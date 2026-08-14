@@ -7,6 +7,18 @@ export class CheckoutService {
     return DeliveryZone.find({ active: true, isDeleted: false }).sort('name');
   }
 
+  listActiveCoupons() {
+    const now = new Date();
+    return Coupon.find({
+      active: true,
+      isDeleted: false,
+      startsAt: { $lte: now },
+      expiresAt: { $gte: now }
+    })
+      .select('code type value minOrderAmount maxDiscountAmount startsAt expiresAt')
+      .sort('-value');
+  }
+
   async validateCoupon(code: string, subtotal: number) {
     const coupon = await Coupon.findOne({
       code: code.toUpperCase(),

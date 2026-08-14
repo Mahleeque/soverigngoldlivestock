@@ -9,51 +9,56 @@ export const Logo = ({ tone = 'dark', className }: { tone?: 'dark' | 'light'; cl
   const [imgError, setImgError] = React.useState(false)
 
   return (
-    <Link to="/" className={clsx('group inline-flex items-center gap-4', className)}>
+    <Link to="/" className={clsx('group inline-flex items-center gap-3.5 transition hover:opacity-95', className)}>
       <span
         className={clsx(
-          'relative flex size-14 items-center justify-center rounded-2xl border transition bg-transparent',
-          tone === 'light' ? 'border-white/25' : 'border-ink-900/10',
+          'relative flex size-12 items-center justify-center overflow-hidden rounded-2xl border shadow-sm transition group-hover:scale-105',
+          tone === 'light'
+            ? 'border-white/20 bg-ink-900/60 shadow-black/20'
+            : 'border-gold-500/30 bg-moss-950 shadow-gold-500/10',
         )}
       >
         {!imgError && (
           <img
             src={logoUrl}
-            alt="Sovereign Gold"
-            className="size-7 object-contain"
+            alt="Sovereign Gold Livestock"
+            className="size-full object-cover"
             style={{ display: imgLoaded ? 'block' : 'none' }}
             onLoad={() => setImgLoaded(true)}
             onError={() => setImgError(true)}
           />
         )}
 
-        {!imgLoaded || imgError ? (
-          <svg viewBox="0 0 24 24" className="size-7" aria-hidden="true">
+        {(!imgLoaded || imgError) && (
+          <svg viewBox="0 0 100 100" className="size-8" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="44" fill="#144230" stroke="#FDE047" strokeWidth="2" />
             <path
-              d="M12 3.2c2.6 0 4.3 1.5 4.3 1.5l1.2-1.3.9 3.4c.6 2.3.2 4.4-1 6.1-.8 1.1-.9 1.6-.9 2.6v3.3H7.5v-3.3c0-1-.1-1.5-.9-2.6-1.2-1.7-1.6-3.8-1-6.1l.9-3.4 1.2 1.3S9.4 3.2 12 3.2Z"
-              className="fill-gold-400"
+              d="M32 38C26 28 40 22 50 32C60 22 74 28 68 38C62 48 54 62 50 68C46 62 38 48 32 38Z"
+              fill="#FACC15"
             />
-            <circle cx="9.6" cy="11" r="1.05" className="fill-ink-900" />
-            <circle cx="14.4" cy="11" r="1.05" className="fill-ink-900" />
+            <circle cx="44" cy="42" r="2" fill="#091A13" />
+            <circle cx="56" cy="42" r="2" fill="#091A13" />
+            <polygon points="50,22 53,27 58,25 55,30 50,28 45,30 42,25 47,27" fill="#FEF08A" />
           </svg>
-        ) : null}
+        )}
       </span>
-      <span className="leading-tight">
+
+      <span className="flex flex-col justify-center leading-none">
         <span
           className={clsx(
-            'block font-display text-2xl font-semibold tracking-tight',
-            tone === 'light' ? 'text-white' : 'text-ink-900',
+            'font-display text-xl font-bold tracking-tight transition sm:text-2xl',
+            tone === 'light' ? 'text-white' : 'text-ink-950',
           )}
         >
-          Sovereign Gold Livestock
+          Sovereign Gold
         </span>
         <span
           className={clsx(
-            'block text-sm font-semibold uppercase tracking-[0.28em]',
+            'mt-1 text-[0.68rem] font-bold uppercase tracking-[0.24em]',
             tone === 'light' ? 'text-gold-300' : 'text-gold-600',
           )}
         >
-          Premium Livestock
+          Livestock Farm
         </span>
       </span>
     </Link>

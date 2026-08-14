@@ -1,6 +1,5 @@
 import {
   Activity,
-  BadgePercent,
   Banknote,
   Beef,
   LayoutDashboard,
@@ -19,7 +18,7 @@ import {
 import { useState, type FormEvent } from 'react'
 import { ChangePasswordForm } from '@/components/ChangePasswordForm'
 import { Button } from '@/components/ui/Button'
-import { Badge, EmptyState, ErrorState, Field, Input, Select, Skeleton, Textarea } from '@/components/ui'
+import { Badge, ConfirmDialog, EmptyState, ErrorState, Field, Input, Select, Skeleton, Textarea } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { cleanName, formatDate, formatDateTime, formatNaira, titleCase } from '@/lib/format'
 import { animalImage } from '@/lib/media'
@@ -34,9 +33,11 @@ import {
   useSalesSummary,
   useReplyConversation,
   useUpdateAnimal,
+  useUpdateOrderStatus,
 } from '@/lib/queries'
 import { toast } from '@/store/toast'
-import type { Animal, Conversation, Coupon, DeliveryZone } from '@/types'
+import type { Animal, Conversation, Coupon, DeliveryZone, Order } from '@/types'
+
 
 const StatCard = ({
   label,
@@ -129,6 +130,206 @@ export const AdminDashboardPage = () => {
     </div>
   )
 }
+
+export const AdminOrdersPage = () => {
+  const { data: orders, isLoading, isError, error, refetch } = useAdminResource<Order>('orders')
+  const updateStatus = useUpdateOrderStatus()
+
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [paymentFilter, setPaymentFilter] = useState('all')
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    setUpdatingId(orderId)
+    try {
+      await updateStatus.mutateAsync({ id: orderId, status: newStatus })
+      toast.success(`Order status updated to ${titleCase(newStatus)}`)
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to update order status'))
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const allOrders = orders ?? []
+
+  const filteredOrders = allOrders.filter((order) => {
+    const customer = typeof order.customer === 'object' && order.customer !== null ? (order.customer as any) : null
+    const customerName = order.deliveryAddress?.fullName || `${customer?.firstName || ''} ${customer?.lastName || ''}`
+    const matchesSearch =
+      !search.trim() ||
+      order.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
+      customerName.toLowerCase().includes(search.toLowerCase()) ||
+      (order.deliveryAddress?.phone || '').includes(search) ||
+      (order.deliveryAddress?.state || '').toLowerCase().includes(search.toLowerCase())
+
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter
+    const matchesPayment = paymentFilter === 'all' || order.paymentStatus === paymentFilter
+
+    return matchesSearch && matchesStatus && matchesPayment
+  })
+
+  if (isLoading) return <Skeleton className="h-96 w-full" />
+  if (isError) return <ErrorState message={errorMessage(error)} onRetry={refetch} />
+
+  const STATUS_TONES: Record<string, 'neutral' | 'success' | 'warning' | 'danger' | 'info'> = {
+    pending: 'warning',
+    confirmed: 'success',
+    processing: 'info',
+    dispatched: 'info',
+    delivered: 'success',
+    cancelled: 'danger',
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-ink-900">Customer Orders</h2>
+          <p className="text-sm text-ink-500">
+            View, track and update dispatch statuses for live livestock purchases.
+          </p>
+        </div>
+      </div>
+
+      <div className="card-surface p-4 sm:p-5">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Input
+            placeholder="Search by order #, customer, phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All Order Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="processing">Processing</option>
+            <option value="dispatched">Dispatched</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </Select>
+          <Select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+            <option value="all">All Payment Statuses</option>
+            <option value="successful">Paid / Successful</option>
+            <option value="pending">Payment Pending</option>
+            <option value="failed">Payment Failed</option>
+          </Select>
+        </div>
+      </div>
+
+      {!filteredOrders.length ? (
+        <EmptyState
+          icon={<Package className="size-6" />}
+          title="No orders found"
+          description={
+            allOrders.length
+              ? 'Try clearing your filters or search query.'
+              : 'Customer orders placed on the website will appear here in real time.'
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => {
+            const customer = typeof order.customer === 'object' && order.customer !== null ? (order.customer as any) : null
+            const customerName =
+              order.deliveryAddress?.fullName ||
+              `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() ||
+              'Valued Customer'
+            const phone = order.deliveryAddress?.phone || customer?.phone || '—'
+
+            return (
+              <article
+                key={order._id}
+                className="card-surface overflow-hidden p-5 sm:p-6 transition hover:shadow-elevated"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-100 pb-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-base font-bold text-ink-950">{order.orderNumber}</span>
+                      <Badge tone={STATUS_TONES[order.status] ?? 'neutral'}>{titleCase(order.status)}</Badge>
+                      <Badge tone={order.paymentStatus === 'successful' ? 'success' : 'warning'}>
+                        {order.paymentStatus === 'successful' ? 'Paid' : titleCase(order.paymentStatus)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-400">Placed on {formatDateTime(order.createdAt)}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-ink-500">Update Status:</span>
+                    <select
+                      value={order.status}
+                      disabled={updatingId === order._id}
+                      onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                      className="rounded-xl border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-800 shadow-xs focus:border-moss-600 focus:ring-1 focus:ring-moss-600 disabled:opacity-50"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="processing">Processing</option>
+                      <option value="dispatched">Dispatched</option>
+                      <option value="delivered">Delivered</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <div className="space-y-1 text-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Customer Details</p>
+                    <p className="font-bold text-ink-900">{customerName}</p>
+                    <p className="text-ink-600">📞 {phone}</p>
+                    {customer?.email ? <p className="text-xs text-ink-500">✉️ {customer.email}</p> : null}
+                  </div>
+
+                  <div className="space-y-1 text-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Delivery Address</p>
+                    <p className="text-ink-800">
+                      {order.deliveryAddress?.addressLine}, {order.deliveryAddress?.city}, {order.deliveryAddress?.state}
+                    </p>
+                    <p className="text-xs text-ink-500">Delivery Fee: {formatNaira(order.deliveryFee)}</p>
+                  </div>
+
+                  <div className="space-y-1 text-sm rounded-2xl bg-ink-50/80 p-3.5 border border-ink-100">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Financial Summary</p>
+                    <div className="flex justify-between font-medium text-ink-700">
+                      <span>Subtotal:</span>
+                      <span>{formatNaira(order.subtotal)}</span>
+                    </div>
+                    {order.discount ? (
+                      <div className="flex justify-between text-xs text-moss-700">
+                        <span>Discount:</span>
+                        <span>-{formatNaira(order.discount)}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between font-bold text-ink-950 pt-1.5 border-t border-ink-200/60">
+                      <span>Total:</span>
+                      <span className="text-base font-bold text-gold-700">{formatNaira(order.total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-ink-100 pt-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-400">Ordered Livestock</p>
+                  <ul className="divide-y divide-ink-100/60 text-sm">
+                    {order.items.map((item, idx) => (
+                      <li key={idx} className="flex justify-between py-1.5">
+                        <span className="font-medium text-ink-800">
+                          {item.name} <span className="text-xs font-normal text-ink-400">× {item.quantity}</span>
+                        </span>
+                        <span className="font-semibold text-ink-900">{formatNaira(item.total)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 export const AdminMessagesPage = () => {
   const { data, isLoading, isError, error, refetch } = useAdminConversations()
@@ -503,6 +704,9 @@ export const AdminInventoryPage = () => {
   const [dialog, setDialog] = useState<{ open: boolean; animal: Animal | null }>({ open: false, animal: null })
   const [search, setSearch] = useState('')
 
+  const [animalToDelete, setAnimalToDelete] = useState<Animal | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
   const setStatus = async (id: string, status: string) => {
     try {
       await updateAnimal.mutateAsync({ id, payload: { status: status as Animal['status'] } })
@@ -512,13 +716,17 @@ export const AdminInventoryPage = () => {
     }
   }
 
-  const remove = async (animal: Animal) => {
-    if (!window.confirm(`Remove ${animal.name} from the farm listing?`)) return
+  const handleConfirmDelete = async () => {
+    if (!animalToDelete) return
+    setDeleteLoading(true)
     try {
-      await deleteAnimal.mutateAsync(animal._id)
-      toast.success(`${animal.name} removed`)
+      await deleteAnimal.mutateAsync(animalToDelete._id)
+      toast.success(`${animalToDelete.name} removed from farm listings`)
+      setAnimalToDelete(null)
     } catch (deleteError) {
       toast.error(errorMessage(deleteError))
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -602,10 +810,7 @@ export const AdminInventoryPage = () => {
                           size="sm"
                           variant="ghost"
                           className="text-red-600 hover:bg-red-50"
-                          onClick={() => {
-                            // eslint-disable-next-line no-restricted-globals
-                            if (confirm(`Delete ${animal.name}? This will remove it from listings.`)) remove(animal)
-                          }}
+                          onClick={() => setAnimalToDelete(animal)}
                           icon={<Trash2 className="size-3.5" />}
                         >
                           Remove
@@ -636,123 +841,302 @@ export const AdminInventoryPage = () => {
       {dialog.open ? (
         <AnimalDialog animal={dialog.animal} onClose={() => setDialog({ open: false, animal: null })} />
       ) : null}
+
+      <ConfirmDialog
+        isOpen={Boolean(animalToDelete)}
+        onClose={() => setAnimalToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Remove Livestock Listing"
+        description="Are you sure you want to remove this animal from the catalog? It will no longer be visible or purchasable by customers."
+        confirmText="Yes, Remove"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+        itemSummary={
+          animalToDelete
+            ? {
+                label: 'Livestock Item',
+                value: `${animalToDelete.name} (${animalToDelete.sku}) — ${formatNaira(animalToDelete.price)}`,
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }
 
 export const AdminCouponsPage = () => {
   const coupons = useAdminResource<Coupon>('coupons')
-  const { create, remove } = useAdminMutations('coupons')
-  const [form, setForm] = useState({ code: '', type: 'percentage', value: '', minOrderAmount: '' })
+  const { create, update, remove } = useAdminMutations('coupons')
+  const [dialog, setDialog] = useState<{ open: boolean; coupon: Coupon | null }>({ open: false, coupon: null })
+  const [couponToDelete, setCouponToDelete] = useState<Coupon | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
+  type CouponForm = {
+    code: string
+    type: 'percentage' | 'fixed'
+    value: string
+    minOrderAmount: string
+    maxDiscountAmount: string
+    expiresAt: string
+    active: boolean
+  }
+
+  const EMPTY_COUPON: CouponForm = {
+    code: '',
+    type: 'percentage',
+    value: '',
+    minOrderAmount: '',
+    maxDiscountAmount: '',
+    expiresAt: '',
+    active: true,
+  }
+
+  const CouponDialog = ({ coupon, onClose }: { coupon: Coupon | null; onClose: () => void }) => {
+    const [form, setForm] = useState<CouponForm>(
+      coupon
+        ? {
+            code: coupon.code,
+            type: (coupon.type as 'percentage' | 'fixed') || 'percentage',
+            value: String(coupon.value ?? ''),
+            minOrderAmount: String(coupon.minOrderAmount ?? ''),
+            maxDiscountAmount: String(coupon.maxDiscountAmount ?? ''),
+            expiresAt: coupon.expiresAt ? coupon.expiresAt.split('T')[0] : '',
+            active: Boolean(coupon.active),
+          }
+        : EMPTY_COUPON,
+    )
+
+    const saving = create.isPending || update.isPending
+
+    const submit = async (event: FormEvent) => {
+      event.preventDefault()
+      try {
+        const payload = {
+          code: form.code.trim().toUpperCase(),
+          type: form.type,
+          value: Number(form.value) || 0,
+          minOrderAmount: Number(form.minOrderAmount) || 0,
+          maxDiscountAmount: form.maxDiscountAmount ? Number(form.maxDiscountAmount) : undefined,
+          expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined,
+          active: Boolean(form.active),
+        }
+        if (coupon) {
+          await update.mutateAsync({ id: coupon._id, payload })
+          toast.success(`Coupon ${payload.code} updated`)
+        } else {
+          await create.mutateAsync(payload)
+          toast.success(`Coupon ${payload.code} created`)
+        }
+        onClose()
+      } catch (error) {
+        toast.error(errorMessage(error))
+      }
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/60 p-4 backdrop-blur-xs sm:p-8">
+        <div className="animate-zoom-in my-auto w-full max-w-xl rounded-3xl bg-white p-6 shadow-elevated sm:p-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="font-display text-2xl font-semibold">{coupon ? `Edit Coupon: ${coupon.code}` : 'Create New Coupon'}</h2>
+              <p className="mt-1 text-ink-500">Set discount rules, minimum purchase requirements, and expiration dates.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-10 items-center justify-center rounded-full text-ink-400 hover:bg-ink-50 hover:text-ink-700"
+              aria-label="Close"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          <form className="mt-6 grid gap-4" onSubmit={submit}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Coupon code">
+                <Input
+                  required
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                  placeholder="e.g. SALLAH10"
+                />
+              </Field>
+              <Field label="Discount type">
+                <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'percentage' | 'fixed' })}>
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed Amount (₦)</option>
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={form.type === 'percentage' ? 'Discount Value (%)' : 'Discount Value (₦)'}>
+                <Input
+                  required
+                  type="number"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  placeholder={form.type === 'percentage' ? '10' : '5000'}
+                />
+              </Field>
+              <Field label="Minimum Order Amount (₦)">
+                <Input
+                  type="number"
+                  value={form.minOrderAmount}
+                  onChange={(e) => setForm({ ...form, minOrderAmount: e.target.value })}
+                  placeholder="0"
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Max Discount Cap (₦ optional)">
+                <Input
+                  type="number"
+                  value={form.maxDiscountAmount}
+                  onChange={(e) => setForm({ ...form, maxDiscountAmount: e.target.value })}
+                  placeholder="e.g. 50000"
+                />
+              </Field>
+              <Field label="Expiration Date">
+                <Input
+                  type="date"
+                  value={form.expiresAt}
+                  onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
+                />
+              </Field>
+            </div>
+
+            <label className="flex items-center gap-3 py-2">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                className="size-5 rounded border-ink-300 text-moss-600 focus:ring-moss-500"
+              />
+              <div>
+                <span className="font-medium text-ink-800">Coupon Active</span>
+                <p className="text-xs text-ink-500">When active, clients can apply this code at checkout.</p>
+              </div>
+            </label>
+
+            <div className="mt-2 flex justify-end gap-3 border-t border-ink-100 pt-4">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={saving}>
+                {coupon ? 'Save Changes' : 'Create Coupon'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!couponToDelete) return
+    setDeleteLoading(true)
     try {
-      await create.mutateAsync({
-        code: form.code.toUpperCase(),
-        type: form.type,
-        value: Number(form.value),
-        minOrderAmount: form.minOrderAmount ? Number(form.minOrderAmount) : 0,
-        startsAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        active: true,
-      })
-      toast.success('Coupon created')
-      setForm({ code: '', type: 'percentage', value: '', minOrderAmount: '' })
+      await remove.mutateAsync(couponToDelete._id)
+      toast.success(`Coupon ${couponToDelete.code} deleted`)
+      setCouponToDelete(null)
     } catch (error) {
       toast.error(errorMessage(error))
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
   return (
-    <div className="space-y-6">
-      <section className="card-surface p-6">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <BadgePercent className="size-4 text-ink-400" /> Create coupon
-        </h2>
-        <form className="mt-5 grid gap-4 sm:grid-cols-4" onSubmit={submit}>
-          <Field label="Code">
-            <Input
-              required
-              value={form.code}
-              onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })}
-              placeholder="SALLAH10"
-            />
-          </Field>
-          <Field label="Type">
-            <Select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}>
-              <option value="percentage">Percentage</option>
-              <option value="fixed">Fixed amount</option>
-            </Select>
-          </Field>
-          <Field label="Value">
-            <Input
-              required
-              type="number"
-              value={form.value}
-              onChange={(event) => setForm({ ...form, value: event.target.value })}
-            />
-          </Field>
-          <Field label="Min order amount">
-            <Input
-              type="number"
-              value={form.minOrderAmount}
-              onChange={(event) => setForm({ ...form, minOrderAmount: event.target.value })}
-            />
-          </Field>
-          <div className="sm:col-span-4">
-            <Button type="submit" loading={create.isPending}>
-              Create coupon
-            </Button>
-          </div>
-        </form>
-      </section>
+    <section className="card-surface p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Discount coupons</h2>
+          <p className="text-sm text-ink-500">Manage promo codes, percentages, flat discounts, and expiration dates.</p>
+        </div>
+        <Button size="sm" icon={<Plus className="size-4" />} onClick={() => setDialog({ open: true, coupon: null })}>
+          Add coupon
+        </Button>
+      </div>
 
-      <section className="card-surface p-6">
-        <h2 className="text-lg font-semibold">Active coupons</h2>
-        {coupons.isLoading ? (
-          <Skeleton className="mt-5 h-24 w-full" />
-        ) : coupons.data?.length ? (
-          <ul className="mt-5 divide-y divide-ink-100">
-            {coupons.data.map((coupon) => (
-              <li key={coupon._id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div>
-                  <p className="font-semibold">{coupon.code}</p>
-                  <p className="text-base text-ink-500">
-                    {coupon.type === 'percentage' ? `${coupon.value}% off` : `${formatNaira(coupon.value)} off`}
-                    {coupon.minOrderAmount ? ` · min ${formatNaira(coupon.minOrderAmount)}` : ''}
-                    {coupon.expiresAt ? ` · expires ${formatDate(coupon.expiresAt)}` : ''}
-                  </p>
-                </div>
-                  <div className="flex items-center gap-3">
+      {coupons.isLoading ? (
+        <Skeleton className="mt-5 h-24 w-full" />
+      ) : coupons.data?.length ? (
+        <ul className="mt-5 divide-y divide-ink-100">
+          {coupons.data.map((coupon) => (
+            <li key={coupon._id} className="flex flex-wrap items-center justify-between gap-3 py-4 transition hover:bg-ink-50/40 rounded-xl px-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-base font-bold text-ink-950">{coupon.code}</span>
                   <Badge tone={coupon.active ? 'success' : 'neutral'}>{coupon.active ? 'Active' : 'Inactive'}</Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600"
-                    onClick={() => {
-                      // eslint-disable-next-line no-restricted-globals
-                      if (confirm(`Delete coupon ${coupon.code}? This action cannot be undone.`)) remove.mutate(coupon._id)
-                    }}
-                  >
-                    Delete
-                  </Button>
                 </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-5 text-base text-ink-500">No coupons configured.</p>
-        )}
-      </section>
-    </div>
+                <p className="mt-1 text-sm text-ink-600">
+                  {coupon.type === 'percentage' ? `${coupon.value}% off` : `${formatNaira(coupon.value)} off`}
+                  {coupon.minOrderAmount ? ` · Min order: ${formatNaira(coupon.minOrderAmount)}` : ' · No minimum'}
+                  {coupon.maxDiscountAmount ? ` · Cap: ${formatNaira(coupon.maxDiscountAmount)}` : ''}
+                  {coupon.expiresAt ? ` · Expires: ${formatDate(coupon.expiresAt)}` : ' · No expiry'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDialog({ open: true, coupon })}
+                  icon={<Pencil className="size-3.5" />}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-ink-500 hover:text-red-700"
+                  onClick={() => setCouponToDelete(coupon)}
+                  icon={<Trash2 className="size-3.5" />}
+                >
+                  Delete
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-5 text-base text-ink-500">No coupons configured yet. Click &ldquo;Add coupon&rdquo; to create one.</p>
+      )}
+
+      {dialog.open ? <CouponDialog coupon={dialog.coupon} onClose={() => setDialog({ open: false, coupon: null })} /> : null}
+
+      <ConfirmDialog
+        isOpen={Boolean(couponToDelete)}
+        onClose={() => setCouponToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Promo Coupon"
+        description="Are you sure you want to delete this coupon code? Customers will no longer be able to apply it at checkout."
+        confirmText="Delete Coupon"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+        itemSummary={
+          couponToDelete
+            ? {
+                label: 'Coupon Code',
+                value: `${couponToDelete.code} (${couponToDelete.type === 'percentage' ? `${couponToDelete.value}% off` : `${formatNaira(couponToDelete.value)} off`})`,
+              }
+            : undefined
+        }
+      />
+    </section>
   )
 }
+
 
 export const AdminDeliveryPage = () => {
   const zones = useAdminResource<DeliveryZone>('deliveryZones')
   const { create, update, remove } = useAdminMutations('deliveryZones')
   const [dialog, setDialog] = useState<{ open: boolean; zone: DeliveryZone | null }>({ open: false, zone: null })
+  const [zoneToDelete, setZoneToDelete] = useState<DeliveryZone | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   type ZoneForm = {
     name: string
@@ -863,13 +1247,17 @@ export const AdminDeliveryPage = () => {
     )
   }
 
-  const handleRemove = async (zone: DeliveryZone) => {
-    if (!window.confirm(`Delete delivery zone “${zone.name}”?`)) return
+  const handleConfirmRemoveZone = async () => {
+    if (!zoneToDelete) return
+    setDeleteLoading(true)
     try {
-      await remove.mutateAsync(zone._id)
-      toast.success('Zone deleted')
+      await remove.mutateAsync(zoneToDelete._id)
+      toast.success(`Delivery zone “${zoneToDelete.name}” deleted`)
+      setZoneToDelete(null)
     } catch (error) {
       toast.error(errorMessage(error))
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -898,7 +1286,7 @@ export const AdminDeliveryPage = () => {
                 <Button size="sm" variant="outline" onClick={() => setDialog({ open: true, zone })} icon={<Pencil className="size-3.5" />}>
                   Edit
                 </Button>
-                <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleRemove(zone)} icon={<Trash2 className="size-3.5" />}>
+                <Button size="sm" variant="ghost" className="text-red-600" onClick={() => setZoneToDelete(zone)} icon={<Trash2 className="size-3.5" />}>
                   Delete
                 </Button>
               </div>
@@ -910,6 +1298,26 @@ export const AdminDeliveryPage = () => {
       )}
 
       {dialog.open ? <ZoneDialog zone={dialog.zone} onClose={() => setDialog({ open: false, zone: null })} /> : null}
+
+      <ConfirmDialog
+        isOpen={Boolean(zoneToDelete)}
+        onClose={() => setZoneToDelete(null)}
+        onConfirm={handleConfirmRemoveZone}
+        title="Delete Delivery Zone"
+        description="Are you sure you want to delete this delivery zone? Shipping rates will need to be reconfigured for covered states."
+        confirmText="Yes, Delete Zone"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+        itemSummary={
+          zoneToDelete
+            ? {
+                label: 'Zone Name',
+                value: `${zoneToDelete.name} (${zoneToDelete.states.join(', ')})`,
+              }
+            : undefined
+        }
+      />
     </section>
   )
 }

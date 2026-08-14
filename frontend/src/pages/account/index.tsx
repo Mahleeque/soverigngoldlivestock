@@ -1,12 +1,13 @@
-import { Bell, CalendarClock, Heart, MapPin, MessageSquare, Package, Plus, Save, Send } from 'lucide-react'
+import { Bell, CalendarClock, Check, Copy, Heart, MapPin, MessageSquare, Package, Plus, Save, Send, Truck } from 'lucide-react'
+
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimalCard } from '@/components/AnimalCard'
-import { ChangePasswordForm } from '@/components/ChangePasswordForm'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Badge, EmptyState, ErrorState, Field, Input, Skeleton, Textarea } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
-import { formatDate, formatDateTime, formatNaira, timeUntil, titleCase } from '@/lib/format'
+import { formatDateTime, formatNaira, timeUntil, titleCase } from '@/lib/format'
+
 import {
   useAddAddress,
   useMarkNotificationRead,
@@ -103,13 +104,10 @@ export const ProfilePage = () => {
           </form>
         )}
       </Panel>
-
-      <Panel title="Password" description="Choose a strong password you don't use anywhere else.">
-        <ChangePasswordForm />
-      </Panel>
     </div>
   )
 }
+
 
 const ORDER_TONE = {
   pending: 'warning',
@@ -123,60 +121,100 @@ const ORDER_TONE = {
 
 export const OrdersPage = () => {
   const { data, isLoading, isError, error, refetch } = useMyOrders()
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  if (isLoading) return <Skeleton className="h-56 w-full" />
+  if (isLoading) return <Skeleton className="h-56 w-full rounded-3xl" />
   if (isError) return <ErrorState message={errorMessage(error)} onRetry={refetch} />
   if (!data?.length) {
     return (
       <EmptyState
-        icon={<Package className="size-5" />}
+        icon={<Package className="size-6" />}
         title="No orders yet"
-        description="When you place an order it will appear here with live delivery status."
+        description="When you place an order it will appear here with live delivery status and receipts."
         action={<ButtonLink to="/animals">Browse livestock</ButtonLink>}
       />
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {data.map((order) => (
-        <article key={order._id} className="card-surface p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <article key={order._id} className="card-surface overflow-hidden p-6 sm:p-7 shadow-xs border border-ink-100">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-4">
             <div>
-              <p className="text-sm uppercase tracking-wide text-ink-400">{formatDate(order.createdAt)}</p>
-              <h3 className="mt-0.5 font-semibold">{order.orderNumber}</h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Order Reference</p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <h3 className="font-mono text-lg font-bold text-ink-950">{order.orderNumber}</h3>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(order.orderNumber)
+                      setCopiedId(order._id)
+                      toast.success('Order number copied!')
+                      setTimeout(() => setCopiedId(null), 2000)
+                    } catch {
+                      toast.info(`Order #: ${order.orderNumber}`)
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-ink-200 bg-white px-2 py-0.5 text-xs font-medium text-ink-700 shadow-2xs transition hover:bg-ink-100"
+                >
+                  {copiedId === order._id ? <Check className="size-3 text-moss-600" /> : <Copy className="size-3" />}
+                  <span>{copiedId === order._id ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-ink-400">Placed on {formatDateTime(order.createdAt)}</p>
             </div>
+
             <div className="flex flex-wrap gap-2">
               <Badge tone={ORDER_TONE[order.status]}>{titleCase(order.status)}</Badge>
               <Badge tone={order.paymentStatus === 'successful' ? 'success' : 'warning'}>
-                {titleCase(order.paymentStatus)}
+                Payment {titleCase(order.paymentStatus)}
               </Badge>
-              <Badge>{titleCase(order.deliveryStatus)}</Badge>
+              <Badge tone="neutral">{titleCase(order.deliveryStatus)}</Badge>
             </div>
           </div>
 
-          <ul className="mt-4 divide-y divide-ink-100 text-base">
-            {order.items.map((item, index) => (
-              <li key={index} className="flex justify-between py-2">
-                <span>
-                  {item.name} <span className="text-ink-400">× {item.quantity}</span>
-                </span>
-                <span className="font-medium">{formatNaira(item.total)}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-400 mb-2">Items Purchased</p>
+            <ul className="divide-y divide-ink-100/70 text-sm">
+              {order.items.map((item, index) => (
+                <li key={index} className="flex justify-between py-2">
+                  <span className="font-medium text-ink-900">
+                    {item.name} <span className="text-xs text-ink-400 font-normal">× {item.quantity}</span>
+                  </span>
+                  <span className="font-semibold text-ink-900">{formatNaira(item.total)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {order.deliveryAddress ? (
+            <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-ink-50 p-3.5 text-xs text-ink-600 border border-ink-100/60">
+              <Truck className="size-4 shrink-0 text-ink-400 mt-0.5" />
+              <div>
+                <span className="font-semibold text-ink-900">Delivery to: </span>
+                {order.deliveryAddress.addressLine}, {order.deliveryAddress.city}, {order.deliveryAddress.state}
+                {order.deliveryFee ? <span className="text-ink-400 font-normal"> (Fee: {formatNaira(order.deliveryFee)})</span> : null}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-4">
-            <p className="text-base text-ink-500">
+            <p className="text-sm text-ink-500">
               Deposit {formatNaira(order.depositDue)} · Balance {formatNaira(order.balanceDue)}
             </p>
-            <p className="font-display text-xl font-semibold">{formatNaira(order.total)}</p>
+            <div className="text-right">
+              <span className="text-xs text-ink-400 uppercase tracking-wider font-semibold block">Total</span>
+              <span className="font-display text-xl font-bold text-gold-700">{formatNaira(order.total)}</span>
+            </div>
           </div>
         </article>
       ))}
     </div>
   )
 }
+
 
 export const ReservationsPage = () => {
   const { data, isLoading, isError, error, refetch } = useMyReservations()

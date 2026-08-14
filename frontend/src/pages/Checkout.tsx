@@ -1,7 +1,9 @@
-import { BadgePercent, CreditCard, Landmark, Lock, MapPin, Truck } from 'lucide-react'
+import { BadgePercent, CreditCard, Gift, Landmark, Lock, MapPin } from 'lucide-react'
+
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/Button'
+import { AvailableCouponsModal } from '@/components/AvailableCouponsModal'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { Badge, Field, Input, Select } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { formatNaira } from '@/lib/format'
@@ -16,14 +18,14 @@ import { useAuthStore } from '@/store/auth'
 import { cartSubtotal, useCartStore } from '@/store/cart'
 import { toast } from '@/store/toast'
 
-type PaymentChoice = 'paystack' | 'flutterwave' | 'bank_transfer' | 'pay_on_delivery'
+type PaymentChoice = 'paystack' | 'flutterwave' | 'bank_transfer'
 
 const PAYMENT_OPTIONS: { value: PaymentChoice; label: string; description: string; icon: typeof CreditCard }[] = [
   { value: 'paystack', label: 'Paystack', description: 'Card, bank & USSD — instant confirmation', icon: CreditCard },
   { value: 'flutterwave', label: 'Flutterwave', description: 'Card & mobile money across Africa', icon: CreditCard },
-  { value: 'bank_transfer', label: 'Bank transfer', description: 'We send account details by email', icon: Landmark },
-  { value: 'pay_on_delivery', label: 'Pay on delivery', description: 'Deposit now, balance at your gate', icon: Truck },
+  { value: 'bank_transfer', label: 'Bank transfer', description: 'Direct transfer to our official OPay account', icon: Landmark },
 ]
+
 
 export const CheckoutPage = () => {
   const navigate = useNavigate()
@@ -38,6 +40,7 @@ export const CheckoutPage = () => {
   const [couponCode, setCouponCode] = useState('')
   const [discount, setDiscount] = useState(0)
   const [appliedCoupon, setAppliedCoupon] = useState('')
+  const [couponsModalOpen, setCouponsModalOpen] = useState(false)
   const [payment, setPayment] = useState<PaymentChoice>('paystack')
   const [form, setForm] = useState({
     fullName: '',
@@ -71,12 +74,14 @@ export const CheckoutPage = () => {
     })
   }
 
-  const applyCoupon = async () => {
-    if (!couponCode.trim()) return
+  const applyCouponWithCode = async (codeToUse: string) => {
+    const clean = codeToUse.trim()
+    if (!clean) return
     try {
-      const result = await validateCoupon.mutateAsync({ code: couponCode.trim(), subtotal })
+      const result = await validateCoupon.mutateAsync({ code: clean, subtotal })
       setDiscount(result.discount)
       setAppliedCoupon(result.coupon.code)
+      setCouponCode(result.coupon.code)
       toast.success(`Coupon applied — you saved ${formatNaira(result.discount)}`)
     } catch (error) {
       setDiscount(0)
@@ -84,6 +89,8 @@ export const CheckoutPage = () => {
       toast.error(errorMessage(error, 'That coupon is not valid.'))
     }
   }
+
+  const applyCoupon = () => applyCouponWithCode(couponCode)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -263,36 +270,65 @@ export const CheckoutPage = () => {
                 ))}
               </div>
               {payment === 'bank_transfer' ? (
-                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <h3 className="text-sm font-semibold">Bank transfer / OPay details</h3>
-                  <p className="mt-2 text-sm text-ink-700">Send payment to the account below and include your order number in the reference.</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-base font-medium">Account number</p>
-                      <p className="font-mono text-lg">7069185859</p>
+                user ? (
+                  <div className="mt-4 rounded-2xl border border-gold-200 bg-gold-50/70 p-5">
+                    <div className="flex items-center gap-2">
+                      <Landmark className="size-4 text-gold-700" />
+                      <h3 className="text-sm font-semibold text-ink-900">Official Bank Transfer / OPay Details</h3>
                     </div>
-                    <div className="text-right">
-                      <p className="text-base font-medium">Account name</p>
-                      <p>Ibrahim Adewale Shittu</p>
+                    <p className="mt-2 text-xs leading-relaxed text-ink-600">
+                      Transfer to the official farm account below. Your livestock order will be verified immediately upon receipt.
+                    </p>
+                    <div className="mt-4 grid gap-3 rounded-xl border border-gold-200/80 bg-white p-4 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Account Number</p>
+                        <p className="font-mono text-lg font-bold tracking-wider text-ink-900">7069185859</p>
+                        <p className="text-xs font-medium text-ink-500">OPay / PalmPay</p>
+                      </div>
+                      <div className="sm:text-right">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-ink-400">Account Name</p>
+                        <p className="text-sm font-bold text-ink-900">Ibrahim Adewale Shittu</p>
+                        <p className="text-xs text-ink-500">Sovereign Gold Livestock</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText('7069185859')
+                            toast.success('Account number copied to clipboard!')
+                          } catch {
+                            toast.info('Account number: 7069185859')
+                          }
+                        }}
+                      >
+                        Copy account number
+                      </Button>
                     </div>
                   </div>
-                  <div className="mt-3 flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText('7069185859')
-                          toast.success('Account number copied')
-                        } catch {
-                          toast.info('Copy not supported — manually copy 7069185859')
-                        }
-                      }}
-                    >
-                      Copy account number
-                    </Button>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-ink-200 bg-ink-50/80 p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-ink-200 text-ink-700">
+                        <Lock className="size-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-ink-900">Sign in required to view bank details</h3>
+                        <p className="mt-0.5 text-xs leading-relaxed text-ink-600">
+                          Official farm bank account &amp; OPay payment details are displayed once you are signed into your account.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <ButtonLink to="/login" state={{ from: '/checkout' }} variant="outline" size="sm">
+                        Sign in to view account details
+                      </ButtonLink>
+                    </div>
                   </div>
-                </div>
+                )
               ) : null}
             </section>
           </div>
@@ -316,23 +352,48 @@ export const CheckoutPage = () => {
             </ul>
 
             <div className="mt-5 border-t border-ink-100 pt-5">
-              <p className="field-label flex items-center gap-2">
-                <BadgePercent className="size-4 text-ink-400" /> Coupon code
-              </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="field-label mb-0 flex items-center gap-2 font-semibold text-ink-800">
+                  <BadgePercent className="size-4 text-ink-400" /> Coupon code
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCouponsModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gold-300 bg-gold-50 px-3.5 py-1.5 text-xs font-bold text-gold-900 shadow-xs transition hover:bg-gold-100 hover:scale-102"
+                >
+                  <Gift className="size-3.5 text-gold-600" />
+                  <span>View Available Deals</span>
+                </button>
+              </div>
+              <div className="mt-3 flex gap-2">
                 <Input
                   value={couponCode}
                   onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
-                  placeholder="SALLAH10"
+                  placeholder="e.g. SALLAH10"
                 />
                 <Button type="button" variant="outline" onClick={applyCoupon} loading={validateCoupon.isPending}>
                   Apply
                 </Button>
               </div>
+
               {appliedCoupon ? (
-                <Badge tone="success" className="mt-2">
-                  {appliedCoupon} applied
-                </Badge>
+                <div className="mt-2 flex items-center justify-between">
+                  <Badge tone="success">
+                    {appliedCoupon} applied
+                  </Badge>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppliedCoupon('')
+                      setDiscount(0)
+                      setCouponCode('')
+                      toast.info('Coupon removed')
+                    }}
+                    className="text-xs text-ink-400 hover:text-red-600"
+                  >
+                    Remove
+                  </button>
+                </div>
               ) : null}
             </div>
 
@@ -375,6 +436,14 @@ export const CheckoutPage = () => {
           </aside>
         </form>
       </div>
+
+      <AvailableCouponsModal
+        isOpen={couponsModalOpen}
+        onClose={() => setCouponsModalOpen(false)}
+        onApply={(code) => applyCouponWithCode(code)}
+        subtotal={subtotal}
+      />
     </div>
   )
 }
+

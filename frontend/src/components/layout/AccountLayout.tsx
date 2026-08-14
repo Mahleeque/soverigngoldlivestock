@@ -1,7 +1,9 @@
 import clsx from 'clsx'
 import { Bell, CalendarClock, Heart, LogOut, MapPin, Package, User } from 'lucide-react'
+import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui'
 import { useAuthStore } from '@/store/auth'
 import { toast } from '@/store/toast'
 
@@ -16,12 +18,13 @@ const LINKS = [
 
 export const AccountLayout = () => {
   const { user, logout } = useAuthStore()
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const navigate = useNavigate()
 
-  const handleLogout = async () => {
-    if (!window.confirm('Are you sure you want to sign out?')) return
+  const handleConfirmLogout = async () => {
     await logout()
-    toast.success('Signed out')
+    setLogoutConfirmOpen(false)
+    toast.success('Signed out successfully')
     navigate('/')
   }
 
@@ -59,7 +62,7 @@ export const AccountLayout = () => {
             <Button
               variant="ghost"
               className="mt-1 justify-start px-3.5 text-red-600 hover:bg-red-50"
-              onClick={handleLogout}
+              onClick={() => setLogoutConfirmOpen(true)}
               icon={<LogOut className="size-4" />}
             >
               Sign out
@@ -71,6 +74,18 @@ export const AccountLayout = () => {
           <Outlet />
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={logoutConfirmOpen}
+        onClose={() => setLogoutConfirmOpen(false)}
+        onConfirm={handleConfirmLogout}
+        title="Sign Out"
+        description="Are you sure you want to sign out of your account?"
+        confirmText="Yes, Sign Out"
+        cancelText="Cancel"
+        variant="primary"
+        icon={<LogOut className="size-6 text-moss-700" />}
+      />
     </div>
   )
 }

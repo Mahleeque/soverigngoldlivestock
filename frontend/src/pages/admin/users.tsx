@@ -1,7 +1,7 @@
-import { Ban, CheckCircle2, ShieldCheck, Trash2, UserRound } from 'lucide-react'
+import { Ban, CheckCircle2, ShieldAlert, ShieldCheck, Trash2, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Badge, EmptyState, ErrorState, Input, Select, Skeleton } from '@/components/ui'
+import { Badge, ConfirmDialog, EmptyState, ErrorState, Input, Select, Skeleton } from '@/components/ui'
 import { errorMessage } from '@/lib/api'
 import { formatDateTime, titleCase } from '@/lib/format'
 import { useAdminUserMutations, useAdminUsers } from '@/lib/queries'
@@ -17,6 +17,11 @@ export const AdminUsersPage = () => {
   const users = useAdminUsers({ search, status, role, limit: 100 })
   const { setRole: setRoleMutation, setBlocked, remove } = useAdminUserMutations()
 
+  // Confirmation Modal States
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null)
+  const [userToBlock, setUserToBlock] = useState<AdminUser | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+
   const changeRole = async (user: AdminUser, nextRole: string) => {
     try {
       await setRoleMutation.mutateAsync({ id: user._id, role: nextRole })
@@ -26,22 +31,31 @@ export const AdminUsersPage = () => {
     }
   }
 
-  const toggleBlocked = async (user: AdminUser) => {
+  const handleConfirmBlock = async () => {
+    if (!userToBlock) return
+    setActionLoading(true)
     try {
-      await setBlocked.mutateAsync({ id: user._id, blocked: !user.isBlocked })
-      toast.success(user.isBlocked ? `${user.firstName} unblocked` : `${user.firstName} blocked`)
+      await setBlocked.mutateAsync({ id: userToBlock._id, blocked: !userToBlock.isBlocked })
+      toast.success(userToBlock.isBlocked ? `${userToBlock.firstName} unblocked` : `${userToBlock.firstName} blocked`)
+      setUserToBlock(null)
     } catch (error) {
       toast.error(errorMessage(error))
+    } finally {
+      setActionLoading(false)
     }
   }
 
-  const removeUser = async (user: AdminUser) => {
-    if (!window.confirm(`Delete ${user.firstName} ${user.lastName}? This cannot be undone.`)) return
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return
+    setActionLoading(true)
     try {
-      await remove.mutateAsync(user._id)
-      toast.success('User removed')
+      await remove.mutateAsync(userToDelete._id)
+      toast.success(`User ${userToDelete.firstName} ${userToDelete.lastName} removed permanently`)
+      setUserToDelete(null)
     } catch (error) {
       toast.error(errorMessage(error))
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -143,7 +157,7 @@ export const AdminUsersPage = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => toggleBlocked(user)}
+                          onClick={() => setUserToBlock(user)}
                           disabled={user.role === 'admin'}
                           icon={
                             user.isBlocked ? <CheckCircle2 className="size-3.5" /> : <Ban className="size-3.5" />
@@ -155,9 +169,9 @@ export const AdminUsersPage = () => {
                           size="sm"
                           variant="ghost"
                           className="text-red-600 hover:bg-red-50"
-                          onClick={() => removeUser(user)}
+                          onClick={() => setUserToDelete(user)}
                           disabled={user.role === 'admin'}
-                          icon={<Trash2 className="size-3.5" />}
+                          icon={<Trash2 className="size-3.5 text-red-500" />}
                         >
                           Delete
                         </Button>
@@ -179,6 +193,53 @@ export const AdminUsersPage = () => {
           ) : null}
         </div>
       ) : null}
+
+      {/* Delete User Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(userToDelete)}
+        onClose={() => setUserToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete User Account"
+        description="Are you sure you want to permanently delete this user? Their account access will be revoked immediately and this action cannot be undone."
+        confirmText="Yes, Delete Account"
+        cancelText="Cancel"
+        variant="danger"
+        loading={actionLoading}
+        itemSummary={
+          userToDelete
+            ? {
+                label: 'Selected Account',
+                value: `${userToDelete.firstName} ${userToDelete.lastName} (${userToDelete.email})`,
+              }
+            : undefined
+        }
+      />
+
+      {/* Block / Unblock User Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(userToBlock)}
+        onClose={() => setUserToBlock(null)}
+        onConfirm={handleConfirmBlock}
+        title={userToBlock?.isBlocked ? 'Unblock User Account' : 'Block User Account'}
+        description={
+          userToBlock?.isBlocked
+            ? 'This will restore the user\'s access to login, make orders and manage their livestock reservations.'
+            : 'Blocking this user will prevent them from signing in, placing orders or reserving livestock on the platform.'
+        }
+        confirmText={userToBlock?.isBlocked ? 'Yes, Unblock' : 'Yes, Block User'}
+        cancelText="Cancel"
+        variant={userToBlock?.isBlocked ? 'primary' : 'warning'}
+        icon={userToBlock?.isBlocked ? <CheckCircle2 className="size-6 text-moss-600" /> : <ShieldAlert className="size-6 text-amber-600" />}
+        loading={actionLoading}
+        itemSummary={
+          userToBlock
+            ? {
+                label: 'User Account',
+                value: `${userToBlock.firstName} ${userToBlock.lastName} (${userToBlock.email})`,
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }

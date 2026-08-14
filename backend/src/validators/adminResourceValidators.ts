@@ -1,7 +1,7 @@
 import { body, param } from 'express-validator';
 import { UserRole } from '../constants/enums';
 
-export const resourceParam = [param('resource').isIn(['deliveryZones', 'coupons', 'settings'])];
+export const resourceParam = [param('resource').isIn(['deliveryZones', 'coupons', 'settings', 'orders', 'payments'])];
 export const resourceIdParam = [param('id').isMongoId()];
 
 export const userIdParam = [param('id').isMongoId()];

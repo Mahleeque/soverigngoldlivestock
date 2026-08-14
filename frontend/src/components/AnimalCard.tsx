@@ -67,49 +67,46 @@ export const AnimalCard = ({
         </div>
       </Link>
 
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <div className="flex items-start justify-between gap-3 min-h-[3.25rem]">
-          <div>
-            <p className="text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-gold-600">
-              {titleCase(animal.category)} · {animal.breed}
-            </p>
-            <h3 className="mt-1 text-lg font-semibold leading-snug">
-              <Link to={`/animals/${animal.slug}`} className="hover:text-moss-600">
-                {displayName}
-              </Link>
-            </h3>
-          </div>
-          
+      <div className="flex flex-1 flex-col justify-between p-5">
+        <div>
+          <p className="text-[0.75rem] font-bold uppercase tracking-[0.16em] text-gold-600 truncate">
+            {titleCase(animal.category)} · {animal.breed}
+          </p>
+          <h3 className="mt-1 text-base font-semibold leading-snug line-clamp-2 h-11">
+            <Link to={`/animals/${animal.slug}`} className="hover:text-moss-600">
+              {displayName}
+            </Link>
+          </h3>
+
+          <dl className="mt-3 grid grid-cols-3 divide-x divide-ink-200/80 rounded-2xl bg-ink-50 px-2 py-2.5 text-center text-xs">
+            <div className="px-1">
+              <dt className="text-ink-400 font-medium">Weight</dt>
+              <dd className="mt-0.5 font-bold text-ink-800 text-[0.85rem]">{animal.weightKg}kg</dd>
+            </div>
+            <div className="px-1">
+              <dt className="text-ink-400 font-medium">Age</dt>
+              <dd className="mt-0.5 font-bold text-ink-800 text-[0.85rem]">{formatAge(animal.ageMonths)}</dd>
+            </div>
+            <div className="px-1">
+              <dt className="text-ink-400 font-medium">Size</dt>
+              <dd className="mt-0.5 font-bold text-ink-800 text-[0.85rem]">{titleCase(animal.size)}</dd>
+            </div>
+          </dl>
         </div>
 
-        <dl className="grid grid-cols-3 gap-2 rounded-2xl bg-ink-50 px-3 py-2.5 text-center text-sm">
+        <div className="mt-4 flex items-end justify-between gap-3 border-t border-ink-100/80 pt-3">
           <div>
-            <dt className="text-ink-400">Weight</dt>
-            <dd className="font-semibold text-ink-800">{animal.weightKg}kg</dd>
+            <p className="text-lg font-bold text-ink-900">{formatNaira(animal.price)}</p>
+            <p className="text-xs text-ink-400">or {formatNaira(animal.depositAmount)} deposit</p>
           </div>
-          <div>
-            <dt className="text-ink-400">Age</dt>
-            <dd className="font-semibold text-ink-800">{formatAge(animal.ageMonths)}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-400">Size</dt>
-            <dd className="font-semibold text-ink-800">{titleCase(animal.size)}</dd>
-          </div>
-        </dl>
-
-        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
-          <div>
-            <p className="text-xl font-semibold text-ink-900">{formatNaira(animal.price)}</p>
-            <p className="text-sm text-ink-400">or {formatNaira(animal.depositAmount)} deposit to reserve</p>
-          </div>
-            <button
+          <button
             type="button"
             onClick={handleAdd}
             disabled={!sellable}
-            className="flex size-11 items-center justify-center rounded-full bg-ink-900 text-white transition hover:bg-moss-600 disabled:cursor-not-allowed disabled:bg-ink-200"
+            className="flex size-10 items-center justify-center rounded-full bg-ink-900 text-white transition hover:bg-moss-600 disabled:cursor-not-allowed disabled:bg-ink-200"
             aria-label={`Add ${displayName} to cart`}
           >
-            <ShoppingCart className="size-5" />
+            <ShoppingCart className="size-4" />
           </button>
         </div>
       </div>

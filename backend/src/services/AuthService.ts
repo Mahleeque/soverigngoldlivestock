@@ -1,8 +1,10 @@
 import crypto from 'crypto';
+import { env } from '../config/env';
 import { UserRole } from '../constants/enums';
 import { IUser, User } from '../models/User';
 import { AppError } from '../utils/appError';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/token';
+import { emailService } from './EmailService';
 
 export class AuthService {
   async register(payload: {
@@ -27,11 +29,14 @@ export class AuthService {
 
   async login(email: string, password: string) {
     const user = await User.findOne({ email: email.toLowerCase(), isDeleted: false }).select('+password');
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user || !user.password || !(await user.comparePassword(password))) {
       throw new AppError('Invalid email or password', 401);
     }
     if (user.isBlocked) {
       throw new AppError('This account has been blocked. Contact the farm administrator.', 403);
+    }
+    if (user.tokenVersion == null) {
+      user.tokenVersion = 0;
     }
     user.lastLoginAt = new Date();
     await user.save({ validateBeforeSave: false });
@@ -52,13 +57,27 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     const user = await User.findOne({ email: email.toLowerCase(), isDeleted: false });
-    if (!user) return;
+    if (!user) {
+      throw new AppError('No account found with this email address', 404);
+    }
     const raw = crypto.randomBytes(32).toString('hex');
     user.passwordResetToken = crypto.createHash('sha256').update(raw).digest('hex');
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
-    return raw;
+
+    const origin = env.clientOrigins[0] || 'http://localhost:5173';
+    const resetUrl = `${origin}/reset-password?token=${raw}&email=${encodeURIComponent(user.email)}`;
+
+    console.info(`🔑 [AuthService] Password reset requested for: ${user.email}`);
+    console.info(`🔗 [AuthService] Direct Reset Link: ${resetUrl}`);
+
+    const delivered = await emailService.passwordReset(user.email, resetUrl, user.firstName);
+
+    return { token: raw, email: user.email, firstName: user.firstName, resetUrl, emailDelivered: delivered };
   }
+
+
+
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const user = await User.findOne({ _id: userId, isDeleted: false }).select('+password');

@@ -31,14 +31,19 @@ export const env = {
   port: Number(process.env.PORT || 8081),
   apiVersion: process.env.API_VERSION || 'v1',
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/sovereign_gold_livestock',
+  mongoDnsServers: (process.env.MONGO_DNS_SERVERS || '')
+    .split(',')
+    .map((server) => server.trim())
+    .filter(Boolean),
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || 'development_access_secret_change_me',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'development_refresh_secret_change_me',
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
-  cookieDomain: process.env.COOKIE_DOMAIN,
-  clientOrigins: (process.env.CLIENT_ORIGINS || 'http://localhost:3000,http://localhost:5173')
+  cookieDomain: process.env.COOKIE_DOMAIN?.trim() || undefined,
+  clientOrigins: (process.env.CLIENT_ORIGINS || 'http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173')
     .split(',')
-    .map((origin) => origin.trim()),
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 900000),
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 300),

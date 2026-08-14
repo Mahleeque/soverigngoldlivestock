@@ -65,6 +65,13 @@ export const useDeliveryZones = () =>
     staleTime: 300_000,
   })
 
+export const useActiveCoupons = () =>
+  useQuery({
+    queryKey: ['active-coupons'],
+    queryFn: () => unwrap<Coupon[]>(http.get('/checkout/coupons/active')),
+    staleTime: 60_000,
+  })
+
 export const useProfile = (enabled = true) =>
   useQuery({
     queryKey: ['profile'],
@@ -153,12 +160,16 @@ export const useSalesSummary = (enabled = true) =>
     enabled,
   })
 
-export const useAdminResource = <T>(resource: 'coupons' | 'deliveryZones' | 'settings', enabled = true) =>
+export const useAdminResource = <T>(
+  resource: 'coupons' | 'deliveryZones' | 'settings' | 'orders' | 'payments',
+  enabled = true,
+) =>
   useQuery({
     queryKey: ['admin', resource],
     queryFn: () => unwrap<T[]>(http.get(`/admin/${resource}`)),
     enabled,
   })
+
 
 export const useToggleWishlist = () => {
   const client = useQueryClient()
@@ -339,11 +350,24 @@ export const useUpdateAnimal = () => {
 export const useUpdateOrderStatus = () => {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; status?: string; paymentStatus?: string; deliveryStatus?: string; note?: string }) =>
-      unwrap<Order>(http.patch(`/orders/${id}/status`, payload)),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['orders'] }),
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: string
+      status?: string
+      paymentStatus?: string
+      deliveryStatus?: string
+      note?: string
+    }) => unwrap<Order>(http.patch(`/orders/${id}/status`, payload)),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['admin', 'orders'] })
+      client.invalidateQueries({ queryKey: ['admin', 'overview'] })
+      client.invalidateQueries({ queryKey: ['orders'] })
+    },
   })
 }
+
 
 export const useAdminMutations = (resource: 'coupons' | 'deliveryZones') => {
   const client = useQueryClient()
