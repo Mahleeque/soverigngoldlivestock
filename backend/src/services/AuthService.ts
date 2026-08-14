@@ -65,8 +65,12 @@ export class AuthService {
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
 
-    const origin = env.clientOrigins[0] || 'http://localhost:5173';
+    const origin =
+      env.clientOrigins.find((o) => !o.includes('localhost') && !o.includes('127.0.0.1')) ||
+      env.clientOrigins[0] ||
+      'https://soverigngoldlivestock.vercel.app';
     const resetUrl = `${origin}/reset-password?token=${raw}&email=${encodeURIComponent(user.email)}`;
+
 
     console.info(`🔑 [AuthService] Password reset requested for: ${user.email}`);
     console.info(`🔗 [AuthService] Direct Reset Link: ${resetUrl}`);
