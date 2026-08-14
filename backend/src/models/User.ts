@@ -20,6 +20,10 @@ export interface IUser extends Document, SoftDeleteFields {
   tokenVersion: number;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
+  passwordResetOtp?: string;
+  passwordResetOtpExpires?: Date;
+  emailVerificationOtp?: string;
+  emailVerificationOtpExpires?: Date;
   addresses: {
     label: string;
     addressLine: string;
@@ -60,6 +64,11 @@ const userSchema = new Schema<IUser>(
     tokenVersion: { type: Number, default: 0 },
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
+    passwordResetOtp: { type: String, select: false },
+    passwordResetOtpExpires: { type: Date, select: false },
+    emailVerificationOtp: { type: String, select: false },
+    emailVerificationOtpExpires: { type: Date, select: false },
+
     addresses: [
       {
         label: { type: String, required: true, trim: true },

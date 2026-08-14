@@ -22,7 +22,20 @@ export const registerValidator = [
 
 export const loginValidator = [emailRule, body('password').isString().notEmpty()];
 
-export const resetPasswordValidator = [body('token').isString().notEmpty(), passwordRule('password')];
+export const verifyOtpValidator = [
+  emailRule,
+  body('otp').isString().isLength({ min: 6, max: 6 }).withMessage('Enter the 6-digit verification code')
+];
+
+export const resetPasswordValidator = [
+  body().custom((value) => {
+    if (!value.token && !value.otp) {
+      throw new Error('Verification code or reset token is required');
+    }
+    return true;
+  }),
+  passwordRule('password')
+];
 
 export const changePasswordValidator = [
   body('currentPassword').isString().notEmpty().withMessage('Enter your current password'),

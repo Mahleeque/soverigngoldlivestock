@@ -1,4 +1,5 @@
-import { ArrowRight, CheckCircle2, Lock, Mail } from 'lucide-react'
+import { ArrowRight, CheckCircle2, KeyRound, Lock, Mail, RefreshCw } from 'lucide-react'
+
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
@@ -211,11 +212,16 @@ export const RegisterPage = () => {
 }
 
 export const ForgotPasswordPage = () => {
+  const [step, setStep] = useState<'email' | 'otp' | 'success'>('email')
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [otp, setOtp] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+  const navigate = useNavigate()
 
-  const submit = async (event: FormEvent) => {
+  const handleSendOtp = async (event: FormEvent) => {
     event.preventDefault()
     if (!email.trim()) return
     setLoading(true)
@@ -223,8 +229,8 @@ export const ForgotPasswordPage = () => {
       await unwrap<{ message?: string }>(
         http.post('/auth/forgot-password', { email: email.trim().toLowerCase() }),
       )
-      setSent(true)
-      toast.success('Reset link dispatched to your email inbox!')
+      setStep('otp')
+      toast.success('6-digit verification code sent to your email!')
     } catch (error) {
       toast.error(errorMessage(error, 'No account found with this email address'))
     } finally {
@@ -232,53 +238,173 @@ export const ForgotPasswordPage = () => {
     }
   }
 
+  const handleResendOtp = async () => {
+    if (!email.trim() || resending) return
+    setResending(true)
+    try {
+      await unwrap<{ message?: string }>(
+        http.post('/auth/forgot-password', { email: email.trim().toLowerCase() }),
+      )
+      toast.success('New 6-digit verification code sent!')
+    } catch (error) {
+      toast.error(errorMessage(error, 'Failed to resend code'))
+    } finally {
+      setResending(false)
+    }
+  }
+
+  const handleResetWithOtp = async (event: FormEvent) => {
+    event.preventDefault()
+    if (otp.trim().length !== 6) {
+      toast.error('Please enter the 6-digit verification code')
+      return
+    }
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await unwrap(
+        http.post('/auth/reset-password', {
+          email: email.trim().toLowerCase(),
+          otp: otp.trim(),
+          password,
+        }),
+      )
+      setStep('success')
+      toast.success('Password updated successfully!')
+    } catch (error) {
+      toast.error(errorMessage(error, 'Invalid or expired verification code'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <AuthShell
-      title="Reset your password"
-      subtitle="Enter your email address and we'll deliver a secure reset link to your inbox."
+      title={
+        step === 'success'
+          ? 'Password updated'
+          : step === 'otp'
+            ? 'Enter verification code'
+            : 'Reset your password'
+      }
+      subtitle={
+        step === 'success'
+          ? 'Your password has been changed successfully.'
+          : step === 'otp'
+            ? `We sent a 6-digit code to ${email}`
+            : "Enter your registered email address and we'll send you an OTP code."
+      }
       footer={
         <Link to="/login" className="font-semibold text-moss-600 hover:underline">
           Back to sign in
         </Link>
       }
     >
-      {sent ? (
-        <div className="mt-8 space-y-6">
-          <div className="rounded-3xl bg-moss-50/90 border border-moss-200 p-6 text-moss-950 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-2xl bg-moss-600 text-white shadow-xs">
-                <Mail className="size-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-moss-950">Check your email inbox</h3>
-                <p className="text-xs text-moss-700 font-medium">Link delivered to {email}</p>
-              </div>
+      {step === 'success' ? (
+        <div className="mt-8 space-y-5">
+          <div className="flex items-center gap-3.5 rounded-3xl bg-moss-50 border border-moss-200 p-6 text-moss-900 shadow-xs">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-moss-600 text-white shrink-0">
+              <CheckCircle2 className="size-6" />
             </div>
-            <p className="mt-4 text-sm leading-relaxed text-moss-800">
-              We have sent a password reset email to <strong>{email}</strong>. Open your email app (check Spam or Junk folder if not seen immediately) and click the <strong>"Reset Password"</strong> button to set your new password.
-            </p>
+            <div>
+              <p className="font-bold text-base text-moss-950">Password Successfully Updated</p>
+              <p className="text-xs text-moss-700 mt-0.5">You can now sign into your account with your new password.</p>
+            </div>
+          </div>
+          <Button size="lg" className="w-full" onClick={() => navigate('/login')} icon={<ArrowRight className="size-4" />}>
+            Proceed to sign in
+          </Button>
+        </div>
+      ) : step === 'otp' ? (
+        <form className="mt-8 space-y-5" onSubmit={handleResetWithOtp}>
+          <div className="rounded-2xl bg-ink-50 border border-ink-100 p-4 text-xs text-ink-600 flex items-center justify-between">
+            <span>
+              Sent to: <strong>{email}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setStep('email')}
+              className="text-xs font-semibold text-moss-700 hover:underline cursor-pointer"
+            >
+              Change email
+            </button>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <Button
+          <Field label="6-Digit Verification Code (OTP)" hint="Check your inbox for the code.">
+            <div className="relative">
+              <KeyRound className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+              <Input
+                required
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                className="pl-11 font-mono text-center tracking-[0.3em] text-lg font-bold"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+              />
+            </div>
+          </Field>
+
+          <Field label="New password" hint="At least 8 characters with a letter and a number.">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+              <Input
+                required
+                type="password"
+                minLength={8}
+                autoComplete="new-password"
+                className="pl-11"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+          </Field>
+
+          <Field label="Confirm new password">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
+              <Input
+                required
+                type="password"
+                minLength={8}
+                autoComplete="new-password"
+                className="pl-11"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+          </Field>
+
+          <Button type="submit" size="lg" className="w-full" loading={loading} icon={<ArrowRight className="size-4" />}>
+            Reset Password
+          </Button>
+
+          <div className="text-center pt-2">
+            <button
               type="button"
-              variant="outline"
-              size="lg"
-              className="w-full"
-              onClick={() => setSent(false)}
+              disabled={resending}
+              onClick={handleResendOtp}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-500 hover:text-ink-900 transition disabled:opacity-50 cursor-pointer"
             >
-              Didn't receive email? Try again
-            </Button>
-            <Link
-              to="/login"
-              className="text-center text-sm font-semibold text-moss-700 hover:underline pt-2 block"
-            >
-              Return to sign in
-            </Link>
+              <RefreshCw className={`size-3.5 ${resending ? 'animate-spin' : ''}`} />
+              <span>{resending ? 'Sending new code...' : 'Didn’t get code? Resend OTP'}</span>
+            </button>
           </div>
-        </div>
+        </form>
       ) : (
-        <form className="mt-8 space-y-4" onSubmit={submit}>
+        <form className="mt-8 space-y-4" onSubmit={handleSendOtp}>
           <Field label="Email address">
             <div className="relative">
               <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-300" />
@@ -293,7 +419,7 @@ export const ForgotPasswordPage = () => {
             </div>
           </Field>
           <Button type="submit" size="lg" className="w-full" loading={loading} icon={<ArrowRight className="size-4" />}>
-            Send reset link
+            Send 6-digit code
           </Button>
         </form>
       )}
@@ -301,15 +427,15 @@ export const ForgotPasswordPage = () => {
   )
 }
 
-
-
 export const ResetPasswordPage = () => {
   const [params] = useSearchParams()
   const { token: routeToken } = useParams<{ token?: string }>()
   const navigate = useNavigate()
-  const initialToken = routeToken || params.get('token') || ''
+  const initialToken = routeToken || params.get('token') || params.get('otp') || ''
+  const emailParam = params.get('email') || ''
 
   const [token, setToken] = useState(initialToken)
+  const [email, setEmail] = useState(emailParam)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -322,16 +448,23 @@ export const ResetPasswordPage = () => {
       return
     }
     if (!token.trim()) {
-      toast.error('Reset token is required')
+      toast.error('Verification code or token is required')
       return
     }
     setLoading(true)
     try {
-      await unwrap(http.post('/auth/reset-password', { token: token.trim(), password }))
+      await unwrap(
+        http.post('/auth/reset-password', {
+          token: token.trim(),
+          otp: /^\d{6}$/.test(token.trim()) ? token.trim() : undefined,
+          email: email.trim() || undefined,
+          password,
+        }),
+      )
       setSuccess(true)
       toast.success('Password reset successfully! Please sign in.')
     } catch (error) {
-      toast.error(errorMessage(error, 'Could not reset password. The link or token may have expired.'))
+      toast.error(errorMessage(error, 'Could not reset password. The link or code may have expired.'))
     } finally {
       setLoading(false)
     }
@@ -349,11 +482,13 @@ export const ResetPasswordPage = () => {
     >
       {success ? (
         <div className="mt-8 space-y-4">
-          <div className="flex items-center gap-3 rounded-2xl bg-moss-50 border border-moss-200 p-5 text-moss-800">
-            <CheckCircle2 className="size-6 text-moss-600 shrink-0" />
+          <div className="flex items-center gap-3.5 rounded-3xl bg-moss-50 border border-moss-200 p-6 text-moss-900 shadow-xs">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-moss-600 text-white shrink-0">
+              <CheckCircle2 className="size-6" />
+            </div>
             <div>
-              <p className="font-semibold">Password Updated</p>
-              <p className="text-sm text-moss-700 mt-0.5">You can now sign in with your new password.</p>
+              <p className="font-bold text-base text-moss-950">Password Updated</p>
+              <p className="text-xs text-moss-700 mt-0.5">You can now sign in with your new password.</p>
             </div>
           </div>
           <Button size="lg" className="w-full" onClick={() => navigate('/login')}>
@@ -363,12 +498,23 @@ export const ResetPasswordPage = () => {
       ) : (
         <form className="mt-8 space-y-4" onSubmit={submit}>
           {!initialToken ? (
-            <Field label="Reset token" hint="Enter the token received from your password reset request.">
+            <Field label="6-Digit OTP Code or Reset Token" hint="Enter the code received in your email.">
               <Input
                 required
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
-                placeholder="Paste token here"
+                placeholder="123456"
+              />
+            </Field>
+          ) : null}
+          {!emailParam ? (
+            <Field label="Email address">
+              <Input
+                required
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
               />
             </Field>
           ) : null}
@@ -410,3 +556,4 @@ export const ResetPasswordPage = () => {
     </AuthShell>
   )
 }
+
