@@ -3,6 +3,7 @@ import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-route
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
 import { ToastHost } from '@/components/ui'
+import { tokenStore } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { toast } from '@/store/toast'
 
@@ -13,13 +14,18 @@ export const RootLayout = () => {
 
   useEffect(() => {
     const onExpired = () => {
+      const hadUser = Boolean(useAuthStore.getState().user || tokenStore.get())
       clearSession()
-      toast.info('Your session expired. Please sign in again.')
-      navigate('/login')
+      if (hadUser && pathname !== '/login' && pathname !== '/register' && pathname !== '/forgot-password') {
+        toast.info('Your session expired. Please sign in again.')
+        navigate('/login')
+      }
     }
     window.addEventListener('sgl:session-expired', onExpired)
     return () => window.removeEventListener('sgl:session-expired', onExpired)
-  }, [clearSession, navigate])
+  }, [clearSession, navigate, pathname])
+
+
 
   return (
     <div className="flex min-h-screen flex-col">
